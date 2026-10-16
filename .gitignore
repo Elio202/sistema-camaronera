@@ -1,0 +1,17 @@
+.env
+.env.local
+.venv/
+venv/
+data/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.pytest_cache/
+.coverage
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+docs/empleados_original.csv
+docs/empleados_depurado.csv

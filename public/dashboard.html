@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Panel principal | Pacific Gold</title>
+    <link rel="stylesheet" href="styles.css?v=dashboard2">
+</head>
+<body class="app-page">
+    <aside>
+        <div class="brand"><span class="brand-mark">OP</span><span>Pacific Gold</span></div>
+        <nav>
+            <small>OPERACIÓN</small>
+            <a class="active" href="/dashboard.html">Panel principal</a>
+            <a href="/piscinas.html">Piscinas</a>
+            <a href="/personal.html">Personal y actividades</a>
+            <a href="/inventario.html">Inventario</a>
+            <small>ADMINISTRACIÓN</small>
+            <a href="/app.html">Usuarios</a>
+            <a href="/roles.html">Roles y permisos</a>
+        </nav>
+        <div class="sidebar-foot">Sistema acuícola<br><span>Versión prototipo 2.0</span></div>
+    </aside>
+    <main class="content">
+        <header>
+            <div><span class="eyebrow">Resumen operativo</span><h1>Panel principal</h1></div>
+            <div class="userbox"><div class="avatar" id="avatar">A</div><div><b id="currentName">...</b><small id="currentRole">...</small></div><button id="logout">Salir</button></div>
+        </header>
+        <section class="dashboard-grid">
+            <a href="/piscinas.html"><span>Piscinas disponibles</span><strong id="availablePoolCount">—</strong><small>Disponibles para siembra →</small></a>
+            <a href="/piscinas.html"><span>Piscinas activas (sembradas)</span><strong id="activePoolCount">—</strong><small>Consultar ciclos activos →</small></a>
+            <a href="/personal.html"><span>Colaboradores activos</span><strong id="staffCount">—</strong><small>Consultar personal →</small></a>
+            <a href="/personal.html"><span>Actividades pendientes</span><strong id="pendingCount">—</strong><small>Ver seguimiento →</small></a>
+            <a class="warning-card" href="/personal.html"><span>Actividades vencidas</span><strong id="overdueCount">—</strong><small>Requieren atención →</small></a>
+            <a href="/inventario.html"><span>Productos con stock bajo</span><strong id="lowCount">—</strong><small>Revisar inventario →</small></a>
+        </section>
+        <section class="welcome-card"><span class="eyebrow light">Pacific Gold</span><h2>Control operativo centralizado</h2><p>Utiliza el menú para administrar piscinas, asignar actividades al personal y controlar las existencias de alimento.</p><div class="quick-links"><a href="/piscinas.html">Piscinas</a><a href="/personal.html">Personal y actividades</a><a href="/inventario.html">Inventario</a></div></section>
+    </main>
+    <script src="module-common.js"></script>
+    <script src="dashboard.js?v=2"></script>
+</body>
+</html>

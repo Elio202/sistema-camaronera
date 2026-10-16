@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Personal | Pacific Gold</title>
+    <link rel="stylesheet" href="styles.css?v=modules3">
+</head>
+<body class="app-page">
+    <aside>
+        <div class="brand"><span class="brand-mark">OP</span><span>Pacific Gold</span></div>
+        <nav>
+            <small>OPERACIÓN</small>
+            <a href="/dashboard.html">Panel principal</a>
+            <a href="/piscinas.html">Piscinas</a>
+            <a class="active" href="/personal.html">Personal y actividades</a>
+            <a href="/inventario.html">Inventario</a>
+            <small>ADMINISTRACIÓN</small>
+            <a href="/app.html">Usuarios</a>
+            <a href="/roles.html">Roles y permisos</a>
+        </nav>
+        <div class="sidebar-foot">Sistema acuícola<br><span>Versión prototipo 2.0</span></div>
+    </aside>
+    <main class="content">
+        <header>
+            <div><span class="eyebrow">Operación</span><h1>Personal y actividades</h1></div>
+            <div class="userbox">
+                <div class="avatar" id="avatar">A</div>
+                <div><b id="currentName">...</b><small id="currentRole">...</small></div>
+                <button id="logout">Salir</button>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="staff">Colaboradores</button>
+            <button class="tab" data-tab="tasks">Actividades</button>
+        </div>
+
+        <section id="staff" class="table-card tab-panel">
+            <div class="toolbar">
+                <div>
+                    <h2>Colaboradores</h2>
+                    <p class="muted">Personal disponible para los procesos.</p>
+                </div>
+                <button class="primary compact" id="newStaff">+ Nuevo colaborador</button>
+            </div>
+            <div class="search">
+                <input id="staffSearch" placeholder="Buscar por código, nombre o puesto...">
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Código</th><th>Nombre</th><th>Puesto</th>
+                            <th>Fecha de ingreso</th><th>Celular</th><th>Estado</th><th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staffRows"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tasks" class="table-card tab-panel hidden">
+            <div class="toolbar">
+                <div>
+                    <h2>Seguimiento de actividades</h2>
+                    <p class="muted">Las pendientes vencidas se clasifican automáticamente.</p>
+                </div>
+                <div class="toolbar-actions">
+                    <button class="secondary danger-button" id="deleteAllTasks">Eliminar todas</button>
+                    <button class="primary compact" id="newTask">+ Asignar actividad</button>
+                </div>
+            </div>
+            <div class="search">
+                <input id="taskSearch" placeholder="Buscar actividad, responsable o piscina...">
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Actividad</th><th>Responsable</th><th>Piscina</th>
+                            <th>Horario programado</th><th>Estado</th><th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskRows"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <dialog id="staffDialog">
+        <form id="staffForm">
+            <div class="dialog-head">
+                <h2 id="staffTitle">Nuevo colaborador</h2>
+                <button type="button" class="close">×</button>
+            </div>
+            <input type="hidden" id="staffId">
+            <div class="grid">
+                <label>Código<input id="staffCode" maxlength="30" required></label>
+                <label>Nombre completo<input id="staffName" maxlength="150" required></label>
+                <label>Puesto<input id="staffPosition" maxlength="100" required></label>
+                <label>Fecha de ingreso<input id="staffStartDate" type="date" required></label>
+                <label>Celular (opcional)<input id="staffPhone" maxlength="20"></label>
+            </div>
+            <div id="staffMessage" class="message"></div>
+            <div class="dialog-actions">
+                <button type="button" class="secondary cancel">Cancelar</button>
+                <button class="primary compact">Guardar</button>
+            </div>
+        </form>
+    </dialog>
+
+    <dialog id="taskDialog">
+        <form id="taskForm">
+            <div class="dialog-head">
+                <h2>Asignar actividad</h2>
+                <button type="button" class="close">×</button>
+            </div>
+            <div class="grid">
+                <label>Colaborador<select id="taskStaff" required></select></label>
+                <label>Piscina<select id="taskPool" required></select></label>
+                <label class="full">Descripción<textarea id="taskDescription" maxlength="300" required></textarea></label>
+                <label>Fecha y hora de inicio<input id="taskStart" type="datetime-local" required></label>
+                <label>Fecha y hora de finalización<input id="taskEnd" type="datetime-local" required></label>
+            </div>
+            <div id="taskMessage" class="message"></div>
+            <div class="dialog-actions">
+                <button type="button" class="secondary cancel">Cancelar</button>
+                <button class="primary compact">Asignar</button>
+            </div>
+        </form>
+    </dialog>
+
+    <script src="module-common.js?v=2"></script>
+    <script src="personal.js?v=7"></script>
+</body>
+</html>

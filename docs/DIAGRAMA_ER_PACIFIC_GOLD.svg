@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1380" viewBox="0 0 1920 1380">
+  <defs>
+    <style>
+      .bg{fill:#f4f9f8}.title{font:700 34px Arial;fill:#082b56}.sub{font:16px Arial;fill:#607b91}
+      .group{fill:none;stroke:#b9cfdb;stroke-width:2;stroke-dasharray:8 7;rx:18}.gt{font:700 18px Arial;fill:#096c83;letter-spacing:2px}
+      .box{fill:#fff;stroke:#8db4c7;stroke-width:2;rx:12}.head{fill:#0b315d;rx:10}.et{font:700 17px Arial;fill:#fff}.field{font:14px Consolas,monospace;fill:#243e52}.key{font-weight:700;fill:#b47b11}
+      .rel{fill:none;stroke:#557a8d;stroke-width:2}.card{font:700 13px Arial;fill:#082b56}.note{font:14px Arial;fill:#496a7d}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#557a8d"/></marker>
+  </defs>
+  <rect class="bg" width="1920" height="1380"/>
+  <text class="title" x="70" y="60">Diagrama Entidad–Relación — Pacific Gold</text>
+  <text class="sub" x="70" y="90">Base de datos pacific_gold · Versión actual 1.0 · MariaDB</text>
+
+  <rect class="group" x="45" y="125" width="880" height="500"/><text class="gt" x="70" y="160">SEGURIDAD Y ACCESO</text>
+  <rect class="group" x="955" y="125" width="920" height="500"/><text class="gt" x="980" y="160">ESTRUCTURA PRODUCTIVA</text>
+  <rect class="group" x="45" y="655" width="880" height="575"/><text class="gt" x="70" y="690">PERSONAL Y ACTIVIDADES</text>
+  <rect class="group" x="955" y="655" width="920" height="575"/><text class="gt" x="980" y="690">INVENTARIO</text>
+
+  <!-- Security entities -->
+  <g transform="translate(80 190)"><rect class="box" width="235" height="145"/><rect class="head" width="235" height="38"/><text class="et" x="16" y="25">ROLES</text><text class="field key" x="15" y="65">PK id</text><text class="field" x="15" y="88">nombre (único)</text><text class="field" x="15" y="111">descripcion</text><text class="field" x="15" y="134">estado</text></g>
+  <g transform="translate(365 190)"><rect class="box" width="245" height="125"/><rect class="head" width="245" height="38"/><text class="et" x="16" y="25">ROL_PERMISOS</text><text class="field key" x="15" y="68">PK/FK rol_id</text><text class="field key" x="15" y="96">PK/FK permiso_id</text></g>
+  <g transform="translate(660 190)"><rect class="box" width="225" height="125"/><rect class="head" width="225" height="38"/><text class="et" x="16" y="25">PERMISOS</text><text class="field key" x="15" y="65">PK id</text><text class="field" x="15" y="89">modulo</text><text class="field" x="15" y="113">funcion</text></g>
+  <g transform="translate(80 390)"><rect class="box" width="275" height="195"/><rect class="head" width="275" height="38"/><text class="et" x="16" y="25">USUARIOS</text><text class="field key" x="15" y="63">PK id</text><text class="field key" x="15" y="86">FK rol_id</text><text class="field" x="15" y="109">nombre_usuario (único)</text><text class="field" x="15" y="132">nombre / correo</text><text class="field" x="15" y="155">password_hash</text><text class="field" x="15" y="178">estado</text></g>
+  <g transform="translate(405 390)"><rect class="box" width="205" height="155"/><rect class="head" width="205" height="38"/><text class="et" x="16" y="25">SESIONES</text><text class="field key" x="15" y="65">PK id</text><text class="field key" x="15" y="88">FK usuario_id</text><text class="field" x="15" y="111">token_hash</text><text class="field" x="15" y="134">inicio / fin / expira</text></g>
+  <g transform="translate(660 390)"><rect class="box" width="225" height="155"/><rect class="head" width="225" height="38"/><text class="et" x="12" y="25">RECUPERACIONES</text><text class="field key" x="15" y="65">PK id</text><text class="field key" x="15" y="88">FK usuario_id</text><text class="field" x="15" y="111">token_hash</text><text class="field" x="15" y="134">expira / utilizado</text></g>
+
+  <!-- Production entities -->
+  <g transform="translate(1000 190)"><rect class="box" width="190" height="125"/><rect class="head" width="190" height="38"/><text class="et" x="16" y="25">FINCAS</text><text class="field key" x="15" y="65">PK id</text><text class="field" x="15" y="89">nombre (único)</text><text class="field" x="15" y="113">estado</text></g>
+  <g transform="translate(1260 190)"><rect class="box" width="210" height="145"/><rect class="head" width="210" height="38"/><text class="et" x="16" y="25">MODULOS</text><text class="field key" x="15" y="65">PK id</text><text class="field key" x="15" y="88">FK finca_id</text><text class="field" x="15" y="111">codigo (único)</text><text class="field" x="15" y="134">estado</text></g>
+  <g transform="translate(1535 190)"><rect class="box" width="265" height="180"/><rect class="head" width="265" height="38"/><text class="et" x="16" y="25">PISCINAS</text><text class="field key" x="15" y="63">PK id</text><text class="field key" x="15" y="86">FK modulo_id</text><text class="field" x="15" y="109">codigo (único)</text><text class="field" x="15" y="132">tipo</text><text class="field" x="15" y="155">area_m2 / estado</text></g>
+  <g transform="translate(1475 430)"><rect class="box" width="325" height="165"/><rect class="head" width="325" height="38"/><text class="et" x="16" y="25">CICLOS_PISCINA</text><text class="field key" x="15" y="63">PK id</text><text class="field key" x="15" y="86">FK piscina_id</text><text class="field" x="15" y="109">numero_ciclo (único/piscina)</text><text class="field" x="15" y="132">estado / fechas</text><text class="field" x="15" y="155">observaciones</text></g>
+
+  <!-- Personnel entities -->
+  <g transform="translate(90 750)"><rect class="box" width="300" height="210"/><rect class="head" width="300" height="38"/><text class="et" x="16" y="25">COLABORADORES</text><text class="field key" x="15" y="64">PK id</text><text class="field" x="15" y="88">codigo_empleado (único)</text><text class="field" x="15" y="112">nombre / puesto</text><text class="field" x="15" y="136">fecha_ingreso / fecha_baja</text><text class="field" x="15" y="160">celular</text><text class="field" x="15" y="184">estado</text></g>
+  <g transform="translate(550 750)"><rect class="box" width="320" height="235"/><rect class="head" width="320" height="38"/><text class="et" x="16" y="25">ACTIVIDADES</text><text class="field key" x="15" y="64">PK id</text><text class="field key" x="15" y="88">FK colaborador_id</text><text class="field key" x="15" y="112">FK piscina_id</text><text class="field key" x="15" y="136">FK usuario_asigna</text><text class="field" x="15" y="160">descripcion / fecha_limite</text><text class="field" x="15" y="184">estado</text><text class="field" x="15" y="208">realizada_en</text></g>
+
+  <!-- Inventory entities -->
+  <g transform="translate(1000 750)"><rect class="box" width="315" height="220"/><rect class="head" width="315" height="38"/><text class="et" x="16" y="25">PRODUCTOS_ALIMENTO</text><text class="field key" x="15" y="64">PK id</text><text class="field" x="15" y="88">codigo (único)</text><text class="field" x="15" y="112">nombre / marca</text><text class="field" x="15" y="136">unidad</text><text class="field" x="15" y="160">stock_actual / stock_minimo</text><text class="field" x="15" y="184">estado</text></g>
+  <g transform="translate(1460 730)"><rect class="box" width="350" height="285"/><rect class="head" width="350" height="38"/><text class="et" x="16" y="25">MOVIMIENTOS_INVENTARIO</text><text class="field key" x="15" y="64">PK id</text><text class="field key" x="15" y="88">FK producto_id</text><text class="field key" x="15" y="112">FK piscina_id (opcional)</text><text class="field key" x="15" y="136">FK responsable_id (opcional)</text><text class="field key" x="15" y="160">FK usuario_id</text><text class="field" x="15" y="184">tipo / cantidad</text><text class="field" x="15" y="208">lote / fecha_vencimiento</text><text class="field" x="15" y="232">observacion</text></g>
+
+  <!-- Relationships -->
+  <path class="rel" marker-end="url(#arrow)" d="M315 245 H365"/><text class="card" x="330" y="235">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M660 275 H610"/><text class="card" x="625" y="267">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M195 335 V390"/><text class="card" x="205" y="368">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M355 465 H405"/><text class="card" x="366" y="455">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M355 520 H660"/><text class="card" x="500" y="510">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1190 250 H1260"/><text class="card" x="1210" y="240">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1470 260 H1535"/><text class="card" x="1485" y="250">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1665 370 V430"/><text class="card" x="1675" y="408">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M390 840 H550"/><text class="card" x="460" y="830">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1315 850 H1460"/><text class="card" x="1375" y="840">1:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1535 340 C1250 420 1040 650 810 750"/><text class="card" x="1110" y="590">PISCINA 1:N ACTIVIDAD</text>
+  <path class="rel" marker-end="url(#arrow)" d="M1670 370 C1810 500 1860 610 1740 730"/><text class="card" x="1745" y="560">0:N</text>
+  <path class="rel" marker-end="url(#arrow)" d="M355 570 C740 650 1180 1030 1460 930"/><text class="card" x="820" y="805">USUARIO 1:N MOVIMIENTO</text>
+  <path class="rel" marker-end="url(#arrow)" d="M390 930 C760 1120 1190 1100 1460 970"/><text class="card" x="820" y="1080">COLABORADOR 0:N MOVIMIENTO</text>
+  <path class="rel" marker-end="url(#arrow)" d="M355 550 C430 650 570 680 665 750"/><text class="card" x="445" y="665">USUARIO 1:N ACTIVIDAD</text>
+
+  <rect x="45" y="1260" width="1830" height="78" rx="12" fill="#e8f2f2"/>
+  <text class="note" x="70" y="1290">PK = clave primaria · FK = clave foránea · 1:N = uno a muchos · 0:N = relación opcional</text>
+  <text class="note" x="70" y="1318">El código productivo (ej. EM00-PC1-5) se obtiene concatenando piscina.codigo + ciclos_piscina.numero_ciclo.</text>
+</svg>

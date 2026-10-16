@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <title>
+   Usuarios | Pacific Gold
+  </title>
+  <link href="styles.css?v=3" rel="stylesheet"/>
+ </head>
+ <body class="app-page">
+  <aside>
+   <div class="brand">
+    <span class="brand-mark">
+     OP
+    </span>
+    <span>
+     Pacific Gold
+    </span>
+   </div>
+   <nav>
+    <small>
+     ADMINISTRACIÓN
+    </small>
+    <a class="active" href="/app.html">
+     Usuarios
+    </a>
+    <a href="/roles.html">
+     Roles y permisos
+    </a>
+    <small>
+     SISTEMA
+    </small>
+    <a href="/dashboard.html">
+     Panel principal
+    </a>
+   </nav>
+   <div class="sidebar-foot">
+    Sistema acuícola
+    <br/>
+    <span>
+     Versión prototipo 1.0
+    </span>
+   </div>
+  </aside>
+  <main class="content">
+   <header>
+    <div>
+     <span class="eyebrow">
+      Administración
+     </span>
+     <h1>
+      Usuarios
+     </h1>
+    </div>
+    <div class="userbox">
+     <div class="avatar" id="avatar">
+      A
+     </div>
+     <div>
+      <b id="currentName">
+       ...
+      </b>
+      <small id="currentRole">
+       ...
+      </small>
+     </div>
+     <button id="logout">
+      Salir
+     </button>
+    </div>
+   </header>
+   <section class="stats">
+    <article>
+     <span>
+      Total de usuarios
+     </span>
+     <strong id="total">
+      0
+     </strong>
+    </article>
+    <article>
+     <span>
+      Usuarios activos
+     </span>
+     <strong id="active">
+      0
+     </strong>
+    </article>
+    <article>
+     <span>
+      Roles configurados
+     </span>
+     <strong id="roleCount">
+      0
+     </strong>
+    </article>
+   </section>
+   <section class="table-card">
+    <div class="toolbar">
+     <div>
+      <h2>
+       Mantenimiento de usuarios
+      </h2>
+      <p class="muted">
+       Crea, modifica, activa o desactiva las cuentas del sistema.
+      </p>
+     </div>
+     <button class="primary compact" id="newUser">
+      + Nuevo usuario
+     </button>
+    </div>
+    <div class="search">
+     <input id="search" placeholder="Buscar por nombre, usuario o correo..."/>
+    </div>
+    <div class="table-scroll">
+     <table>
+      <thead>
+       <tr>
+        <th>
+         Usuario
+        </th>
+        <th>
+         Correo
+        </th>
+        <th>
+         Rol
+        </th>
+        <th>
+         Estado
+        </th>
+        <th>
+         Acciones
+        </th>
+       </tr>
+      </thead>
+      <tbody id="userRows">
+      </tbody>
+     </table>
+    </div>
+   </section>
+  </main>
+  <dialog id="userDialog">
+   <form id="userForm">
+    <div class="dialog-head">
+     <div>
+      <span class="eyebrow">
+       Cuenta
+      </span>
+      <h2 id="dialogTitle">
+       Nuevo usuario
+      </h2>
+     </div>
+     <button class="close" id="closeDialog" type="button">
+      ×
+     </button>
+    </div>
+    <input id="userId" type="hidden"/>
+    <div class="grid">
+     <label>
+      Nombre completo
+      <input id="nombre" maxlength="120" minlength="3" required=""/>
+     </label>
+     <label>
+      Nombre de usuario
+      <input id="nombreUsuario" maxlength="50" minlength="3" pattern="[A-Za-z0-9._-]+" required=""/>
+     </label>
+     <label>
+      Correo electrónico
+      <input id="correo" maxlength="150" required="" type="email"/>
+     </label>
+     <label>
+      Rol
+      <select id="rol" required="">
+      </select>
+     </label>
+     <label class="full">
+      Contraseña
+      <small id="passwordHint">
+       (8+ caracteres, mayúscula, minúscula y número)
+      </small>
+      <input id="newPassword" minlength="8" type="password"/>
+     </label>
+    </div>
+    <div class="message" id="formMessage">
+    </div>
+    <div class="dialog-actions">
+     <button class="secondary" id="cancelDialog" type="button">
+      Cancelar
+     </button>
+     <button class="primary compact">
+      Guardar usuario
+     </button>
+    </div>
+   </form>
+  </dialog>
+  <script src="app.js?v=4">
+  </script>
+ </body>
+</html>
+

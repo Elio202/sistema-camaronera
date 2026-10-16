@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Acceso | Pacific Gold</title>
+    <link rel="stylesheet" href="styles.css?v=login10">
+</head>
+<body class="login-page login-centered">
+    <main class="login-shell">
+        <section class="login-panel">
+            <form class="login-card" id="loginForm">
+                <img
+                    class="login-card-logo"
+                    src="logo-pacific-gold.png"
+                    alt="Pacific Gold"
+                >
+                <h2>Bienvenido a <span>Pacific Gold</span></h2>
+                <p class="muted">Sistema de gestión acuícola</p>
+
+                <label>
+                    Usuario
+                    <div class="input-wrap">
+                        <span aria-hidden="true">●</span>
+                        <input
+                            id="usuario"
+                            autocomplete="username"
+                            placeholder="Nombre de usuario"
+                            required
+                        >
+                    </div>
+                </label>
+
+                <label>
+                    Contraseña
+                    <div class="input-wrap">
+                        <span aria-hidden="true">●</span>
+                        <input
+                            id="password"
+                            type="password"
+                            autocomplete="current-password"
+                            placeholder="Tu contraseña"
+                            required
+                        >
+                        <button
+                            class="eye"
+                            id="togglePassword"
+                            type="button"
+                            aria-label="Mostrar contraseña"
+                        >
+                            Ver
+                        </button>
+                    </div>
+                </label>
+
+                <div class="forgot">
+                    <a href="mailto:emarroquin@esteromar.gt?subject=Recuperación%20de%20contraseña%20Pacific%20Gold">
+                        ¿Olvidaste tu contraseña?
+                    </a>
+                </div>
+
+                <div class="message" id="message" role="alert"></div>
+
+                <button class="primary" type="submit">
+                    Ingresar al sistema <span aria-hidden="true">→</span>
+                </button>
+
+                <div class="login-divider"><span>Pacific Gold</span></div>
+                <footer>© 2026 Pacific Gold</footer>
+            </form>
+        </section>
+    </main>
+    <script src="login.js?v=login9"></script>
+</body>
+</html>
