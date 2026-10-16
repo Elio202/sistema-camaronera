@@ -100,7 +100,21 @@ def init_db():
         if not c.execute("SELECT 1 FROM usuarios").fetchone():
             c.execute("INSERT INTO usuarios(nombre_usuario,nombre,correo,password_hash,rol_id,creado_en) VALUES(?,?,?,?,1,?)", ("admin","Administrador del sistema","admin@orodelpacifico.local",password_hash("Admin123!"),iso()))
 
+def apply_schema():
+    """Ejecuta database/00_esquema_completo_railway.sql (idempotente: no borra datos)."""
+    text=(ROOT/"database"/"00_esquema_completo_railway.sql").read_text(encoding="utf-8")
+    text="\n".join(line for line in text.splitlines() if not line.strip().startswith("--"))
+    statements=[s.strip() for s in re.split(r";\s*\n",text) if s.strip()]
+    conn=MariaConnection()
+    try:
+        for statement in statements: conn.cursor.execute(statement.rstrip(";"))
+        conn.conn.commit()
+    finally: conn.cursor.close(); conn.conn.close()
+    return len(statements)
+
 def init_mariadb():
+    with db() as c: missing=not c.execute("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='roles'").fetchone()
+    if missing: print(f"Base vacía: esquema creado ({apply_schema()} sentencias).")
     roles=[(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes")]
     permissions=[*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar'))]
     role_permissions={2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar')]}
