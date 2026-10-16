@@ -27,6 +27,9 @@ def load_env():
 
 load_env()
 USE_MARIADB=bool(os.getenv("DB_PASSWORD"))
+# Con HTTPS (Railway) la cookie de sesión debe viajar solo cifrada.
+SECURE_COOKIE="; Secure" if os.getenv("COOKIE_SECURE","").lower()=="true" else ""
+ADMIN_INITIAL_PASSWORD=os.getenv("ADMIN_INITIAL_PASSWORD","Admin123!")
 INTEGRITY_ERRORS=(sqlite3.IntegrityError,pymysql.err.IntegrityError) if pymysql else (sqlite3.IntegrityError,)
 
 def now(): return datetime.now(timezone.utc)
@@ -108,7 +111,7 @@ def init_mariadb():
         for role_id,allowed in role_permissions.items():
             for module,function in allowed: c.execute("INSERT IGNORE INTO rol_permisos SELECT ?,id FROM permisos WHERE modulo=? AND funcion=?",(role_id,module,function))
         if not c.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone():
-            c.execute("INSERT INTO usuarios(nombre_usuario,nombre,correo,password_hash,rol_id,creado_en) VALUES(?,?,?,?,1,?)",("admin","Administrador del sistema","emarroquin@esteromar.gt",password_hash("Admin123!"),iso()))
+            c.execute("INSERT INTO usuarios(nombre_usuario,nombre,correo,password_hash,rol_id,creado_en) VALUES(?,?,?,?,1,?)",("admin","Administrador del sistema","emarroquin@esteromar.gt",password_hash(ADMIN_INITIAL_PASSWORD),iso()))
 
 def user_payload(c, uid):
     user = c.execute("SELECT u.id,u.nombre_usuario,u.nombre,u.correo,u.estado,r.id rol_id,r.nombre rol FROM usuarios u JOIN roles r ON r.id=u.rol_id WHERE u.id=?",(uid,)).fetchone()
@@ -258,13 +261,13 @@ class App(SimpleHTTPRequestHandler):
                 if not row or not row["estado"] or not password_ok(password,row["password_hash"]): return self.json(401,{"error":"Usuario o contraseña incorrectos."})
                 token=secrets.token_urlsafe(32); expiry=now()+timedelta(hours=8)
                 c.execute("INSERT INTO sesiones(token_hash,usuario_id,fecha_inicio,expira_en) VALUES(?,?,?,?)",(hashlib.sha256(token.encode()).hexdigest(),row["id"],iso(),iso(expiry)))
-                cookie=f"session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800"
+                cookie=f"session={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800{SECURE_COOKIE}"
                 return self.json(200,{"usuario":user_payload(c,row["id"])},cookie)
         if path=="/api/logout":
             cookie=SimpleCookie(self.headers.get("Cookie")); morsel=cookie.get("session")
             if morsel:
                 with db() as c: c.execute("UPDATE sesiones SET fecha_fin=? WHERE token_hash=?",(iso(),hashlib.sha256(morsel.value.encode()).hexdigest()))
-            return self.json(200,{"ok":True},"session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")
+            return self.json(200,{"ok":True},f"session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{SECURE_COOKIE}")
         if path=="/api/usuarios":
             if not self.require("usuarios.crear"): return
             required=[str(data.get(x,"")).strip() for x in ("nombre_usuario","nombre","correo","password")]
@@ -571,4 +574,6 @@ class App(SimpleHTTPRequestHandler):
         except INTEGRITY_ERRORS: return self.json(409,{"error":"Los datos ingresados ya están en uso o no son válidos."})
 
 if __name__=="__main__":
-    init_db(); print("Sistema disponible en http://localhost:8000"); ThreadingHTTPServer(("127.0.0.1",8000),App).serve_forever()
+    # En Railway se define PORT y HOST=0.0.0.0; en local se conserva 127.0.0.1:8000.
+    host=os.getenv("HOST","127.0.0.1"); port=int(os.getenv("PORT","8000"))
+    init_db(); print(f"Sistema disponible en http://{host}:{port}"); ThreadingHTTPServer((host,port),App).serve_forever()
