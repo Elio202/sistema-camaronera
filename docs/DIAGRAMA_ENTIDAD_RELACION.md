@@ -108,7 +108,6 @@ erDiagram
         enum estado
         date fecha_siembra
         date fecha_cosecha
-        varchar observaciones
     }
 
     COLABORADORES {

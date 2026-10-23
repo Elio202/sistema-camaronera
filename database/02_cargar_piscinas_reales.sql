@@ -91,8 +91,7 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO ciclos_piscina (
     piscina_id,
     numero_ciclo,
-    estado,
-    observaciones
+    estado
 )
 SELECT
     p.id,
@@ -100,15 +99,13 @@ SELECT
     CASE
         WHEN c.estado_texto IN ('COSECHADA', 'COSECHADAS') THEN 'Cosechado'
         ELSE 'Sembrado'
-    END,
-    'Último ciclo registrado durante la carga inicial'
+    END
 FROM carga_piscinas_csv AS c
 INNER JOIN piscinas AS p
     ON p.codigo = c.piscina
 WHERE CAST(c.ultimo_ciclo_texto AS UNSIGNED) >= 1
 ON DUPLICATE KEY UPDATE
-    estado = VALUES(estado),
-    observaciones = VALUES(observaciones);
+    estado = VALUES(estado);
 
 COMMIT;
 

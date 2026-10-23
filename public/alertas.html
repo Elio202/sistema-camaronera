@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Alertas | Pacific Gold</title>
+    <link rel="stylesheet" href="styles.css?v=alerts1">
+</head>
+<body class="app-page">
+    <aside>
+        <div class="brand"><span class="brand-mark">OP</span><span>Pacific Gold</span></div>
+        <nav>
+            <small>OPERACIÓN</small>
+            <a href="/dashboard.html">Panel principal</a>
+            <a href="/piscinas.html">Piscinas</a>
+            <a href="/personal.html">Personal y actividades</a>
+            <a href="/inventario.html">Inventario</a>
+            <a class="active" href="/alertas.html">Alertas</a>
+            <small>ADMINISTRACIÓN</small>
+            <a href="/app.html">Usuarios</a>
+            <a href="/roles.html">Roles y permisos</a>
+        </nav>
+        <div class="sidebar-foot">Sistema acuícola<br><span>Versión prototipo 2.0</span></div>
+    </aside>
+    <main class="content">
+        <header>
+            <div><span class="eyebrow">Seguimiento operativo</span><h1>Alertas</h1></div>
+            <div class="userbox"><div class="avatar" id="avatar">A</div><div><b id="currentName">...</b><small id="currentRole">...</small></div><button id="logout">Salir</button></div>
+        </header>
+        <section class="stats alert-stats">
+            <article><span>Pendientes</span><strong id="pendingAlerts">0</strong></article>
+            <article><span>Atendidas</span><strong id="attendedAlerts">0</strong></article>
+            <article><span>Resueltas automáticamente</span><strong id="resolvedAlerts">0</strong></article>
+        </section>
+        <section class="table-card">
+            <div class="toolbar"><div><h2>Centro de alertas</h2><p class="muted">Revisa condiciones que requieren seguimiento operativo.</p></div></div>
+            <div class="alert-filters">
+                <input id="alertSearch" placeholder="Buscar por título o descripción...">
+                <select id="moduleFilter"><option value="">Todos los módulos</option></select>
+                <select id="stateFilter"><option value="">Todos los estados</option><option>Pendiente</option><option>Atendida</option><option>Resuelta</option></select>
+                <select id="levelFilter"><option value="">Todos los niveles</option><option>Crítica</option><option>Advertencia</option><option>Informativa</option></select>
+            </div>
+            <div id="alertMessage" class="message"></div>
+            <div class="table-scroll">
+                <table><thead><tr><th>Fecha</th><th>Módulo</th><th>Alerta</th><th>Nivel</th><th>Estado</th><th>Atendida por</th><th>Acción</th></tr></thead><tbody id="alertRows"></tbody></table>
+            </div>
+        </section>
+    </main>
+    <script src="module-common.js?v=4"></script>
+    <script src="alertas.js?v=1"></script>
+</body>
+</html>

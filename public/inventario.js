@@ -1,63 +1,149 @@
-let products = [],
-    moves = [],
-    pools = [],
-    staff = [],
-    currentUser;
+let products = [], moves = [], pools = [], staff = [], currentUser;
+
 const can = permission => currentUser?.permisos?.includes(permission);
+const normalize = value => String(value ?? "").toLocaleLowerCase("es");
+
 async function load() {
-    [products, moves, pools, staff] = await Promise.all([api("/api/productos").then(x => x.productos), api("/api/movimientos").then(x => x.movimientos), api("/api/piscinas").then(x => x.piscinas), api("/api/colaboradores").then(x => x.colaboradores)]);
+    [products, moves, pools, staff] = await Promise.all([
+        api("/api/productos").then(result => result.productos),
+        api("/api/movimientos").then(result => result.movimientos),
+        api("/api/piscinas").then(result => result.piscinas),
+        api("/api/colaboradores").then(result => result.colaboradores)
+    ]);
     render();
-    $("#moveProduct").innerHTML = products.filter(x => x.estado).map(x => `<option value="${x.id}">${safe(x.nombre)} (${x.stock_actual} ${x.unidad})</option>`).join("");
-    $("#movePool").innerHTML = pools.filter(x => x.estado).map(x => `<option value="${x.id}">${safe(x.codigo_productivo)}</option>`).join("");
-    $("#moveStaff").innerHTML = staff.filter(x => x.estado).map(x => `<option value="${x.id}">${safe(x.nombre)}</option>`).join("")
+    $("#moveProduct").innerHTML = products.filter(item => item.estado).map(item =>
+        `<option value="${item.id}">${safe(item.nombre)} (${Number(item.stock_actual).toFixed(2)} ${safe(item.unidad)})</option>`
+    ).join("");
+    $("#movePool").innerHTML = pools.filter(item => item.estado).map(item =>
+        `<option value="${item.id}">${safe(item.codigo_productivo)}</option>`
+    ).join("");
+    $("#moveStaff").innerHTML = staff.filter(item => item.estado).map(item =>
+        `<option value="${item.id}">${safe(item.nombre)}</option>`
+    ).join("");
 }
 
 function render() {
-    $("#productCount").textContent = products.filter(x => x.estado).length;
-    $("#lowCount").textContent = products.filter(x => Number(x.stock_actual) <= Number(x.stock_minimo)).length;
+    $("#productCount").textContent = products.filter(item => item.estado).length;
+    $("#lowCount").textContent = products.filter(item => item.estado && Number(item.stock_actual) <= Number(item.stock_minimo)).length;
     $("#moveCount").textContent = moves.length;
-    $("#productRows").innerHTML = products.map(x => `<tr><td>${safe(x.codigo)}</td><td><b>${safe(x.nombre)}</b></td><td>${safe(x.marca)}</td><td>${Number(x.stock_actual).toFixed(2)} ${safe(x.unidad)}</td><td>${Number(x.stock_minimo).toFixed(2)}</td><td><span class="badge ${Number(x.stock_actual)<=Number(x.stock_minimo)?"off":""}">${Number(x.stock_actual)<=Number(x.stock_minimo)?"Stock bajo":"Disponible"}</span></td><td>${can("inventario.registrar") ? `<button class="action danger-text" data-delete-product="${x.id}">Eliminar</button>` : "—"}</td></tr>`).join("");
-    $("#moveRows").innerHTML = moves.map(x => `<tr><td>${new Date(x.creado_en).toLocaleString()}</td><td><span class="badge ${x.tipo==="Salida"?"pending":""}">${x.tipo}</span></td><td>${safe(x.producto)}</td><td>${Number(x.cantidad).toFixed(2)} ${safe(x.unidad)}</td><td>${safe(x.piscina||"—")}</td><td>${safe(x.responsable||"—")}</td><td>${can("inventario.registrar") ? `<button class="action danger-text" data-delete-move="${x.id}">Eliminar</button>` : "—"}</td></tr>`).join("")
+
+    const productTerm = normalize($("#productSearch").value);
+    const productState = $("#productStateFilter").value;
+    const filteredProducts = products.filter(item => {
+        const matchesText = [item.codigo, item.nombre, item.marca].some(value => normalize(value).includes(productTerm));
+        const low = item.estado && Number(item.stock_actual) <= Number(item.stock_minimo);
+        const matchesState = !productState
+            || (productState === "active" && item.estado)
+            || (productState === "low" && low)
+            || (productState === "inactive" && !item.estado);
+        return matchesText && matchesState;
+    });
+
+    $("#productRows").innerHTML = filteredProducts.map(item => {
+        const low = item.estado && Number(item.stock_actual) <= Number(item.stock_minimo);
+        const label = !item.estado ? "Inactivo" : low ? "Stock bajo" : "Disponible";
+        const actions = can("inventario.registrar")
+            ? `<button class="action" data-edit-product="${item.id}">Editar</button><button class="action" data-toggle-product="${item.id}">${item.estado ? "Desactivar" : "Activar"}</button><button class="action danger-text" data-delete-product="${item.id}">Eliminar</button>`
+            : "—";
+        return `<tr class="${low ? "stock-low-row" : ""}"><td>${safe(item.codigo)}</td><td><b>${safe(item.nombre)}</b></td><td>${safe(item.marca)}</td><td class="${low ? "stock-low-value" : ""}">${Number(item.stock_actual).toFixed(2)} ${safe(item.unidad)}</td><td>${Number(item.stock_minimo).toFixed(2)}</td><td><span class="badge ${!item.estado || low ? "off" : ""}">${label}</span></td><td>${actions}</td></tr>`;
+    }).join("") || `<tr><td colspan="7" class="empty-state">No se encontraron productos.</td></tr>`;
+
+    const moveTerm = normalize($("#moveSearch").value);
+    const moveType = $("#moveTypeFilter").value;
+    const poolType = $("#poolTypeFilter").value;
+    const filteredMoves = moves.filter(item =>
+        (!moveType || item.tipo === moveType)
+        && (!poolType || item.tipo_piscina === poolType)
+        && [item.producto, item.piscina, item.tipo_piscina, item.responsable, item.lote, item.observacion].some(value => normalize(value).includes(moveTerm))
+    );
+    $("#moveRows").innerHTML = filteredMoves.map(item => `<tr><td>${new Date(item.creado_en).toLocaleString()}</td><td><span class="badge ${item.tipo === "Salida" ? "pending" : ""}">${item.tipo}</span></td><td>${safe(item.producto)}</td><td>${Number(item.cantidad).toFixed(2)} ${safe(item.unidad)}</td><td>${safe(item.lote || "—")}</td><td>${item.fecha_vencimiento ? new Date(`${item.fecha_vencimiento}T00:00:00`).toLocaleDateString() : "—"}</td><td>${safe(item.piscina || "—")}</td><td>${item.tipo_piscina ? `<span class="badge ${item.tipo_piscina === "Engorde" ? "pool-type-engorde" : "pool-type-precria"}">${safe(item.tipo_piscina)}</span>` : "—"}</td><td>${safe(item.responsable || "—")}</td><td class="movement-note">${safe(item.observacion || "—")}</td><td>${can("inventario.registrar") ? `<button class="action danger-text" data-delete-move="${item.id}">Eliminar</button>` : "—"}</td></tr>`).join("") || `<tr><td colspan="11" class="empty-state">No se encontraron movimientos.</td></tr>`;
+}
+
+function editProduct(product) {
+    $("#productForm").reset();
+    $("#productId").value = product.id;
+    $("#productCode").value = product.codigo;
+    $("#productCode").disabled = true;
+    $("#productName").value = product.nombre;
+    $("#productBrand").value = product.marca;
+    $("#productUnit").value = product.unidad;
+    $("#productMin").value = Number(product.stock_minimo);
+    $("#productDialogTitle").textContent = "Editar producto";
+    showMessage($("#productMessage"), "");
+    openDialog($("#productDialog"));
 }
 
 $("#productRows").onclick = async event => {
-    if (!event.target.dataset.deleteProduct) return;
-    const product = products.find(item => item.id == event.target.dataset.deleteProduct);
-    if (!confirm(`¿Eliminar permanentemente el producto ${product.nombre}?`)) return;
-    try { await api(`/api/productos/${product.id}`, {method: "DELETE"}); await load(); }
-    catch (error) { alert(error.message); }
+    const editId = event.target.dataset.editProduct;
+    const toggleId = event.target.dataset.toggleProduct;
+    const deleteId = event.target.dataset.deleteProduct;
+    const product = products.find(item => item.id == (editId || toggleId || deleteId));
+    if (!product) return;
+    if (editId) return editProduct(product);
+    if (toggleId) {
+        const action = product.estado ? "desactivar" : "activar";
+        if (!confirm(`¿Desea ${action} el producto ${product.nombre}?`)) return;
+        try {
+            await api(`/api/productos/${product.id}`, {method: "PATCH", body: JSON.stringify({estado: !product.estado})});
+            await load();
+        } catch (error) { alert(error.message); }
+        return;
+    }
+    if (!deleteId || !confirm(`¿Eliminar permanentemente el producto ${product.nombre}?`)) return;
+    try {
+        await api(`/api/productos/${product.id}`, {method: "DELETE"});
+        await load();
+    } catch (error) { alert(error.message); }
 };
 
 $("#moveRows").onclick = async event => {
     if (!event.target.dataset.deleteMove) return;
     if (!confirm("¿Eliminar este movimiento y recalcular el stock del producto?")) return;
-    try { await api(`/api/movimientos/${event.target.dataset.deleteMove}`, {method: "DELETE"}); await load(); }
-    catch (error) { alert(error.message); }
+    try {
+        await api(`/api/movimientos/${event.target.dataset.deleteMove}`, {method: "DELETE"});
+        await load();
+    } catch (error) { alert(error.message); }
 };
 
 function toggleType() {
     const exit = $("#moveType").value === "Salida";
-    document.querySelectorAll(".exit-field").forEach(x => x.classList.toggle("hidden", !exit));
-    document.querySelectorAll(".entry-field").forEach(x => x.classList.toggle("hidden", exit))
+    document.querySelectorAll(".exit-field").forEach(item => item.classList.toggle("hidden", !exit));
+    document.querySelectorAll(".entry-field").forEach(item => item.classList.toggle("hidden", exit));
 }
+
 $("#moveType").onchange = toggleType;
-document.querySelectorAll(".close,.cancel").forEach(x => x.onclick = () => x.closest("dialog").close());
+$("#productSearch").oninput = render;
+$("#productStateFilter").onchange = render;
+$("#moveSearch").oninput = render;
+$("#moveTypeFilter").onchange = render;
+$("#poolTypeFilter").onchange = render;
+document.querySelectorAll(".close,.cancel").forEach(item => item.onclick = () => item.closest("dialog").close());
+
 $("#newProduct").onclick = () => {
     $("#productForm").reset();
-    openDialog($("#productDialog"))
+    $("#productId").value = "";
+    $("#productCode").disabled = false;
+    $("#productUnit").value = "kg";
+    $("#productDialogTitle").textContent = "Nuevo producto";
+    showMessage($("#productMessage"), "");
+    openDialog($("#productDialog"));
 };
+
 $("#newMove").onclick = () => {
     $("#moveForm").reset();
+    showMessage($("#moveMessage"), "");
     toggleType();
-    openDialog($("#moveDialog"))
+    openDialog($("#moveDialog"));
 };
-$("#productForm").onsubmit = async e => {
-    e.preventDefault();
+
+$("#productForm").onsubmit = async event => {
+    event.preventDefault();
+    const id = $("#productId").value;
     try {
-        await api("/api/productos", {
-            method: "POST",
+        await api(id ? `/api/productos/${id}` : "/api/productos", {
+            method: id ? "PATCH" : "POST",
             body: JSON.stringify({
-                codigo: $("#productCode").value,
+                ...(id ? {} : {codigo: $("#productCode").value}),
                 nombre: $("#productName").value,
                 marca: $("#productBrand").value,
                 unidad: $("#productUnit").value,
@@ -65,13 +151,12 @@ $("#productForm").onsubmit = async e => {
             })
         });
         $("#productDialog").close();
-        load()
-    } catch (err) {
-        showMessage($("#productMessage"), err.message)
-    }
+        await load();
+    } catch (error) { showMessage($("#productMessage"), error.message); }
 };
-$("#moveForm").onsubmit = async e => {
-    e.preventDefault();
+
+$("#moveForm").onsubmit = async event => {
+    event.preventDefault();
     const exit = $("#moveType").value === "Salida";
     try {
         await api("/api/movimientos", {
@@ -88,12 +173,13 @@ $("#moveForm").onsubmit = async e => {
             })
         });
         $("#moveDialog").close();
-        load()
-    } catch (err) {
-        showMessage($("#moveMessage"), err.message)
-    }
+        await load();
+    } catch (error) { showMessage($("#moveMessage"), error.message); }
 };
+
 (async () => {
     currentUser = await initSession();
-    await load()
-})().catch(err => alert(err.message));
+    $("#newProduct").hidden = !can("inventario.registrar");
+    $("#newMove").hidden = !can("inventario.registrar");
+    await load();
+})().catch(error => alert(error.message));

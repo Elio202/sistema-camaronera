@@ -2,7 +2,7 @@ const form = document.querySelector('#loginForm'),
     message = document.querySelector('#message'),
     submit = form.querySelector('button[type=submit]');
 fetch('/api/me').then(r => {
-    if (r.ok) location.href = '/app.html'
+    if (r.ok) location.href = '/dashboard.html'
 }).catch(() => {});
 document.querySelector('#togglePassword').onclick = () => {
     const p = document.querySelector('#password');
@@ -28,7 +28,7 @@ form.onsubmit = async e => {
         if (!response.ok) throw new Error(data.error);
         message.className = 'message success';
         message.textContent = 'Acceso correcto. Cargando panel...';
-        setTimeout(() => location.href = '/app.html', 450)
+        setTimeout(() => location.href = '/dashboard.html', 450)
     } catch (err) {
         message.className = 'message';
         message.textContent = err.message || 'No fue posible conectar con el sistema.';

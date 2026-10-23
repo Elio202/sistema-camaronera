@@ -460,6 +460,65 @@ th {
     color: #9c4545
 }
 
+.stock-low-row td {
+    background: #fff4e5;
+    border-bottom-color: #f3c98b;
+}
+
+.stock-low-row td:first-child {
+    box-shadow: inset 5px 0 0 #e38b16;
+}
+
+.stock-low-row:hover td {
+    background: #ffecd0;
+}
+
+.stock-low-value {
+    color: #b45309;
+    font-weight: 800;
+}
+
+.inventory-filters {
+    display: grid;
+    grid-template-columns: minmax(280px, 1fr) 190px 190px;
+    gap: 12px;
+}
+
+.inventory-filters input,
+.inventory-filters select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--navy);
+    font: inherit;
+}
+
+.pool-type-engorde {
+    background: #e8f4ff;
+    color: #155e9a;
+}
+
+.pool-type-precria {
+    background: #eee9ff;
+    color: #6544a6;
+}
+
+.movement-note {
+    min-width: 180px;
+    max-width: 300px;
+    white-space: normal;
+    line-height: 1.4;
+    color: var(--muted);
+}
+
+@media(max-width:760px) {
+    .inventory-filters {
+        grid-template-columns: 1fr;
+    }
+}
+
 .action {
     border: 0;
     background: none;
@@ -475,6 +534,18 @@ th {
 .cycle-filters { display: flex; align-items: center; gap: 12px; }
 .cycle-filters input { flex: 1; max-width: 538px; }
 .cycle-filters select { min-width: 190px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--navy); font: inherit; }
+
+.alert-filters { display:grid; grid-template-columns:minmax(260px,2fr) repeat(3,minmax(150px,1fr)); gap:12px; padding:0 32px 24px; }
+.alert-filters input,.alert-filters select { width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:#fff; color:var(--navy); font:inherit; }
+.alert-stats { margin-bottom:24px; }
+.alert-row.alert-crítica { box-shadow:inset 5px 0 #cf3f3f; background:#fffafa; }
+.alert-row.alert-advertencia { box-shadow:inset 5px 0 #e3a329; background:#fffdf7; }
+.alert-row.alert-informativa { box-shadow:inset 5px 0 #2879c8; }
+.alert-level { background:#fff0cf; color:#8b5b00; }
+.alert-state { background:#ffe3e3; color:#aa3030; }
+
+@media (max-width: 950px) { .alert-filters { grid-template-columns:1fr 1fr; } }
+@media (max-width: 620px) { .alert-filters { grid-template-columns:1fr; padding:0 18px 18px; } }
 .action:disabled, .cycle-select:disabled { cursor: not-allowed; opacity: .45; }
 .danger-text { color: var(--danger); }
 .toolbar-actions { display: flex; align-items: center; gap: 10px; }

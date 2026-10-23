@@ -58,7 +58,6 @@ CREATE TABLE IF NOT EXISTS ciclos_piscina (
         NOT NULL DEFAULT 'Planificado',
     fecha_siembra DATE NULL,
     fecha_cosecha DATE NULL,
-    observaciones VARCHAR(255) NULL,
     creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
