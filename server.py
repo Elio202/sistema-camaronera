@@ -44,6 +44,40 @@ def refresh_activity_statuses(c):
     c.execute("""UPDATE actividades SET estado='Vencida'
         WHERE estado='Pendiente' AND COALESCE(fecha_fin,fecha_limite)<?""",(current,))
 
+def alerts_table_ready(c=None):
+    try:
+        if c is not None: c.execute("SELECT 1 FROM alertas LIMIT 1")
+        else:
+            with db() as connection: connection.execute("SELECT 1 FROM alertas LIMIT 1")
+        return True
+    except Exception: return False
+
+def sync_alerts(c):
+    """Mantiene una sola alerta abierta por cada condición operativa."""
+    refresh_activity_statuses(c)
+    timestamp=business_iso()
+    sources=(
+        ("Inventario","stock_bajo","Advertencia","SELECT id,codigo,nombre,stock_actual,stock_minimo,unidad FROM productos_alimento WHERE estado=1 AND stock_actual<=stock_minimo"),
+        ("Personal","actividad_vencida","Crítica","SELECT id,descripcion,COALESCE(fecha_fin,fecha_limite) fecha_fin FROM actividades WHERE estado='Vencida'")
+    )
+    for module,key,level,sql in sources:
+        active=set()
+        for row in c.execute(sql).fetchall():
+            reference=int(row["id"]); active.add(reference)
+            latest=c.execute("SELECT id,estado FROM alertas WHERE modulo=? AND clave=? AND referencia_id=? ORDER BY id DESC LIMIT 1",(module,key,reference)).fetchone()
+            if latest and latest["estado"]!="Resuelta": continue
+            if key=="stock_bajo":
+                title=f"Stock bajo: {row['nombre']}"
+                description=f"{row['codigo']} tiene {row['stock_actual']} {row['unidad']}; el mínimo es {row['stock_minimo']} {row['unidad']}."
+            else:
+                title="Actividad vencida"
+                description=f"{row['descripcion']} finalizó el {row['fecha_fin']} sin confirmarse."
+            c.execute("INSERT INTO alertas(modulo,referencia_id,clave,titulo,descripcion,nivel,generada_en) VALUES(?,?,?,?,?,?,?)",(module,reference,key,title,description,level,timestamp))
+        opened=c.execute("SELECT id,referencia_id FROM alertas WHERE modulo=? AND clave=? AND estado IN ('Pendiente','Atendida')",(module,key)).fetchall()
+        for alert in opened:
+            if int(alert["referencia_id"]) not in active:
+                c.execute("UPDATE alertas SET estado='Resuelta',resuelta_en=? WHERE id=?",(timestamp,alert["id"]))
+
 class MariaConnection:
     def __init__(self):
         self.conn=pymysql.connect(host=os.getenv("DB_HOST","127.0.0.1"),port=int(os.getenv("DB_PORT","3306")),user=os.getenv("DB_USER"),password=os.getenv("DB_PASSWORD"),database=os.getenv("DB_NAME","pacific_gold"),charset="utf8mb4",cursorclass=pymysql.cursors.DictCursor,autocommit=False)
@@ -86,14 +120,14 @@ def init_db():
         CREATE TABLE IF NOT EXISTS usuarios(id INTEGER PRIMARY KEY, nombre_usuario TEXT UNIQUE NOT NULL COLLATE NOCASE, nombre TEXT NOT NULL, correo TEXT UNIQUE NOT NULL COLLATE NOCASE, password_hash TEXT NOT NULL, rol_id INTEGER NOT NULL REFERENCES roles(id), estado INTEGER NOT NULL DEFAULT 1, creado_en TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sesiones(id INTEGER PRIMARY KEY, token_hash TEXT UNIQUE NOT NULL, usuario_id INTEGER NOT NULL REFERENCES usuarios(id), fecha_inicio TEXT NOT NULL, fecha_fin TEXT, expira_en TEXT NOT NULL);
         """)
-        roles = [(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes")]
+        roles = [(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes"),(6,"Encargado de Bodega","Control de entradas y salidas de alimento")]
         c.executemany("INSERT OR IGNORE INTO roles(id,nombre,descripcion) VALUES(?,?,?)", roles)
         c.executemany("UPDATE roles SET nombre=?,descripcion=? WHERE id=?", ((name,description,role_id) for role_id,name,description in roles))
-        permissions = [*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar'))]
+        permissions = [*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar')),*(('alertas',x) for x in ('ver','atender'))]
         for module, function in permissions:
             c.execute("INSERT OR IGNORE INTO permisos(modulo,funcion) VALUES(?,?)", (module,function))
         c.execute("INSERT OR IGNORE INTO rol_permisos SELECT 1,id FROM permisos")
-        role_permissions = {2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar')]}
+        role_permissions = {2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('alertas','atender')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar'),('alertas','ver')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver'),('alertas','ver'),('alertas','atender')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver')],6:[('inventario','ver'),('inventario','registrar'),('alertas','ver')]}
         for role_id, allowed in role_permissions.items():
             for module, function in allowed:
                 c.execute("INSERT OR IGNORE INTO rol_permisos SELECT ?,id FROM permisos WHERE modulo=? AND funcion=?",(role_id,module,function))
@@ -115,9 +149,9 @@ def apply_schema():
 def init_mariadb():
     with db() as c: missing=not c.execute("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='roles'").fetchone()
     if missing: print(f"Base vacía: esquema creado ({apply_schema()} sentencias).")
-    roles=[(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes")]
-    permissions=[*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar'))]
-    role_permissions={2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar')]}
+    roles=[(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes"),(6,"Encargado de Bodega","Control de entradas y salidas de alimento")]
+    permissions=[*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar')),*(('alertas',x) for x in ('ver','atender'))]
+    role_permissions={2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('alertas','atender')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar'),('alertas','ver')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver'),('alertas','ver'),('alertas','atender')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver')],6:[('inventario','ver'),('inventario','registrar'),('alertas','ver')]}
     with db() as c:
         for role in roles: c.execute("INSERT INTO roles(id,nombre,descripcion) VALUES(?,?,?) ON DUPLICATE KEY UPDATE nombre=VALUES(nombre),descripcion=VALUES(descripcion)",role)
         for permission in permissions: c.execute("INSERT IGNORE INTO permisos(modulo,funcion) VALUES(?,?)",permission)
@@ -150,6 +184,12 @@ def positive_number(value):
     try:
         number=float(value)
         return number if number > 0 else None
+    except (TypeError,ValueError): return None
+
+def nonnegative_number(value):
+    try:
+        number=float(value)
+        return number if number >= 0 else None
     except (TypeError,ValueError): return None
 
 class App(SimpleHTTPRequestHandler):
@@ -210,6 +250,8 @@ class App(SimpleHTTPRequestHandler):
             if not module_tables_ready(): return self.json(503,{"error":"Ejecute la migración de módulos en MariaDB."})
             with db() as c:
                 refresh_activity_statuses(c)
+                alerts_ready=alerts_table_ready(c)
+                if alerts_ready: sync_alerts(c)
                 data={
                     "piscinas_disponibles":c.execute("""SELECT COUNT(*) total FROM piscinas p
                         WHERE p.estado=1 AND NOT EXISTS (
@@ -224,8 +266,20 @@ class App(SimpleHTTPRequestHandler):
                     "colaboradores":c.execute("SELECT COUNT(*) total FROM colaboradores WHERE estado=1").fetchone()["total"],
                     "pendientes":c.execute("SELECT COUNT(*) total FROM actividades WHERE estado='Pendiente'").fetchone()["total"],
                     "vencidas":c.execute("SELECT COUNT(*) total FROM actividades WHERE estado='Vencida'").fetchone()["total"],
-                    "productos_bajos":c.execute("SELECT COUNT(*) total FROM productos_alimento WHERE estado=1 AND stock_actual<=stock_minimo").fetchone()["total"]}
+                    "productos_bajos":c.execute("SELECT COUNT(*) total FROM productos_alimento WHERE estado=1 AND stock_actual<=stock_minimo").fetchone()["total"],
+                    "alertas_pendientes":c.execute("SELECT COUNT(*) total FROM alertas WHERE estado='Pendiente'").fetchone()["total"] if alerts_ready else 0}
                 return self.json(200,{"resumen":data})
+        if path=="/api/alertas":
+            if not self.require("alertas.ver"): return
+            with db() as c:
+                if not alerts_table_ready(c): return self.json(503,{"error":"Ejecute la migración 09_crear_alertas.sql en HeidiSQL."})
+                sync_alerts(c)
+                rows=c.execute("""SELECT a.*,u.nombre atendida_por_nombre
+                    FROM alertas a LEFT JOIN usuarios u ON u.id=a.atendida_por
+                    ORDER BY FIELD(a.estado,'Pendiente','Atendida','Resuelta'),a.generada_en DESC,a.id DESC
+                    LIMIT 500""").fetchall()
+                totals={state:c.execute("SELECT COUNT(*) total FROM alertas WHERE estado=?",(state,)).fetchone()["total"] for state in ("Pendiente","Atendida","Resuelta")}
+                return self.json(200,{"alertas":[dict(row) for row in rows],"totales":totals})
         if path=="/api/piscinas":
             if not self.require("piscinas.ver"): return
             if not module_tables_ready(): return self.json(503,{"error":"Ejecute la migración de módulos en MariaDB."})
@@ -243,7 +297,7 @@ class App(SimpleHTTPRequestHandler):
             except (TypeError,ValueError): return self.json(400,{"error":"Seleccione una piscina válida."})
             with db() as c:
                 rows=c.execute("""SELECT c.id,c.numero_ciclo,c.estado,c.fecha_siembra,c.fecha_cosecha,
-                    c.observaciones,c.creado_en,CONCAT(p.codigo,'-',c.numero_ciclo) codigo_productivo
+                    c.creado_en,CONCAT(p.codigo,'-',c.numero_ciclo) codigo_productivo
                     FROM ciclos_piscina c JOIN piscinas p ON p.id=c.piscina_id
                     WHERE c.piscina_id=? ORDER BY c.numero_ciclo DESC""",(piscina_id,)).fetchall()
                 return self.json(200,{"ciclos":[dict(x) for x in rows]})
@@ -262,7 +316,7 @@ class App(SimpleHTTPRequestHandler):
         if path=="/api/movimientos":
             if not self.require("inventario.ver"): return
             with db() as c:
-                rows=c.execute("SELECT m.*,pr.nombre producto,pr.unidad,COALESCE(v.codigo_productivo,p.codigo) piscina,c.nombre responsable,u.nombre registrado_por FROM movimientos_inventario m JOIN productos_alimento pr ON pr.id=m.producto_id LEFT JOIN piscinas p ON p.id=m.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id LEFT JOIN colaboradores c ON c.id=m.responsable_id JOIN usuarios u ON u.id=m.usuario_id ORDER BY m.id DESC LIMIT 250").fetchall()
+                rows=c.execute("SELECT m.*,pr.nombre producto,pr.unidad,COALESCE(v.codigo_productivo,p.codigo) piscina,p.tipo tipo_piscina,c.nombre responsable,u.nombre registrado_por FROM movimientos_inventario m JOIN productos_alimento pr ON pr.id=m.producto_id LEFT JOIN piscinas p ON p.id=m.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id LEFT JOIN colaboradores c ON c.id=m.responsable_id JOIN usuarios u ON u.id=m.usuario_id ORDER BY m.id DESC LIMIT 250").fetchall()
                 return self.json(200,{"movimientos":[dict(x) for x in rows]})
         if path=="/": self.path="/login.html"
         return super().do_GET()
@@ -341,7 +395,7 @@ class App(SimpleHTTPRequestHandler):
                         return self.json(400,{"error":f"El siguiente ciclo debe ser el número {esperado}."})
                     if ultimo and ultimo["estado"]=="Cancelado":
                         c.execute("""UPDATE ciclos_piscina SET estado='Sembrado',fecha_siembra=?,
-                            fecha_cosecha=NULL,observaciones='Ciclo reiniciado después de una cancelación'
+                            fecha_cosecha=NULL
                             WHERE id=?""",(fecha,ultimo["id"]))
                     else:
                         c.execute("INSERT INTO ciclos_piscina(piscina_id,numero_ciclo,estado,fecha_siembra) VALUES(?,?,'Sembrado',?)",(piscina_id,numero,fecha))
@@ -389,8 +443,8 @@ class App(SimpleHTTPRequestHandler):
             return self.json(201,{"ok":True})
         if path=="/api/productos":
             if not self.require("inventario.registrar"): return
-            codigo=clean_text(data,"codigo",2,30); nombre=clean_text(data,"nombre",3,120); marca=clean_text(data,"marca",2,80); unidad=clean_text(data,"unidad",1,20); minimo=positive_number(data.get("stock_minimo"))
-            if not all((codigo,nombre,marca,unidad,minimo)): return self.json(400,{"error":"Complete todos los datos del producto con valores válidos."})
+            codigo=clean_text(data,"codigo",2,30); nombre=clean_text(data,"nombre",3,120); marca=clean_text(data,"marca",2,80); unidad=clean_text(data,"unidad",1,20); minimo=nonnegative_number(data.get("stock_minimo"))
+            if not all((codigo,nombre,marca,unidad)) or minimo is None: return self.json(400,{"error":"Complete todos los datos del producto con valores válidos."})
             try:
                 with db() as c:c.execute("INSERT INTO productos_alimento(codigo,nombre,marca,unidad,stock_minimo) VALUES(?,?,?,?,?)",(codigo.upper(),nombre,marca,unidad,minimo))
                 return self.json(201,{"ok":True})
@@ -403,14 +457,22 @@ class App(SimpleHTTPRequestHandler):
             except (TypeError,ValueError):return self.json(400,{"error":"Los datos del movimiento no son válidos."})
             if tipo not in ("Entrada","Salida") or not cantidad:return self.json(400,{"error":"Tipo y cantidad positiva son obligatorios."})
             if tipo=="Salida" and (not piscina or not responsable):return self.json(400,{"error":"Toda salida requiere piscina y responsable."})
+            expiry=data.get("fecha_vencimiento") or None
+            if expiry:
+                try: datetime.strptime(str(expiry),"%Y-%m-%d")
+                except ValueError:return self.json(400,{"error":"La fecha de vencimiento no es válida."})
             with db() as c:
                 product=c.execute("SELECT stock_actual,estado FROM productos_alimento WHERE id=? FOR UPDATE",(producto,)).fetchone()
                 if not product or not product["estado"]:return self.json(400,{"error":"El producto no está disponible."})
+                if tipo=="Salida":
+                    destination=c.execute("""SELECT 1 FROM piscinas p,colaboradores c
+                        WHERE p.id=? AND p.estado=1 AND c.id=? AND c.estado=1""",(piscina,responsable)).fetchone()
+                    if not destination:return self.json(400,{"error":"La piscina y el responsable deben estar activos."})
                 stock=float(product["stock_actual"])
                 if tipo=="Salida" and cantidad>stock:return self.json(400,{"error":"La salida supera la existencia disponible."})
                 nuevo=stock+cantidad if tipo=="Entrada" else stock-cantidad
                 c.execute("UPDATE productos_alimento SET stock_actual=? WHERE id=?",(nuevo,producto))
-                c.execute("INSERT INTO movimientos_inventario(producto_id,tipo,cantidad,piscina_id,lote,fecha_vencimiento,responsable_id,usuario_id,observacion) VALUES(?,?,?,?,?,?,?,?,?)",(producto,tipo,cantidad,piscina,clean_text(data,"lote",0,50),data.get("fecha_vencimiento") or None,responsable,user["id"],clean_text(data,"observacion",0,255)))
+                c.execute("INSERT INTO movimientos_inventario(producto_id,tipo,cantidad,piscina_id,lote,fecha_vencimiento,responsable_id,usuario_id,observacion) VALUES(?,?,?,?,?,?,?,?,?)",(producto,tipo,cantidad,piscina,clean_text(data,"lote",0,50),expiry,responsable,user["id"],clean_text(data,"observacion",0,255)))
             return self.json(201,{"ok":True,"stock_actual":nuevo})
         self.json(404,{"error":"Ruta no encontrada."})
     def do_DELETE(self):
@@ -485,7 +547,7 @@ class App(SimpleHTTPRequestHandler):
             except INTEGRITY_ERRORS:return self.json(409,{"error":"El producto tiene movimientos relacionados. Elimine primero esos movimientos."})
         if resource=="roles-config":
             if not self.require("roles.editar"):return
-            if record_id<=5:return self.json(400,{"error":"Los roles base del sistema están protegidos."})
+            if record_id<=6:return self.json(400,{"error":"Los roles base del sistema están protegidos."})
             try:
                 with db() as c:
                     c.execute("DELETE FROM rol_permisos WHERE rol_id=?",(record_id,))
@@ -498,6 +560,19 @@ class App(SimpleHTTPRequestHandler):
         if len(parts)!=3:return self.json(404,{"error":"Ruta no encontrada."})
         data=self.body()
         resource=parts[1]
+        if resource=="alertas":
+            user=self.require("alertas.atender")
+            if not user:return
+            try:alert_id=int(parts[2])
+            except ValueError:return self.json(400,{"error":"Alerta no válida."})
+            if data.get("estado")!="Atendida":return self.json(400,{"error":"La alerta solo puede marcarse como atendida."})
+            with db() as c:
+                if not alerts_table_ready(c):return self.json(503,{"error":"Ejecute la migración 09_crear_alertas.sql en HeidiSQL."})
+                alert=c.execute("SELECT estado FROM alertas WHERE id=?",(alert_id,)).fetchone()
+                if not alert:return self.json(404,{"error":"La alerta no existe."})
+                if alert["estado"]!="Pendiente":return self.json(409,{"error":"La alerta ya fue atendida o resuelta."})
+                c.execute("UPDATE alertas SET estado='Atendida',atendida_en=?,atendida_por=? WHERE id=?",(business_iso(),user["id"],alert_id))
+            return self.json(200,{"ok":True})
         if resource in ("piscinas","colaboradores","productos"):
             config={"piscinas":("piscinas","piscinas",("modulo_id","tipo","area_m2","estado")),"colaboradores":("colaboradores","personal",("nombre","puesto","fecha_ingreso","fecha_baja","celular","estado")),"productos":("productos_alimento","inventario",("nombre","marca","unidad","stock_minimo","estado"))}[resource]
             permission=f"{config[1]}.{'cambiar_estado' if set(data)=={'estado'} and resource!='productos' else 'editar'}"
@@ -512,11 +587,22 @@ class App(SimpleHTTPRequestHandler):
                         except ValueError: return self.json(400,{"error":"La fecha laboral no es válida."})
                 if set(data)=={"estado"}:
                     data["fecha_baja"]=datetime.now().date().isoformat() if not data["estado"] else None
+            if resource=="productos":
+                if "nombre" in data and not clean_text(data,"nombre",3,120):return self.json(400,{"error":"El nombre debe tener entre 3 y 120 caracteres."})
+                if "marca" in data and not clean_text(data,"marca",2,80):return self.json(400,{"error":"La marca debe tener entre 2 y 80 caracteres."})
+                if "unidad" in data and not clean_text(data,"unidad",1,20):return self.json(400,{"error":"La unidad no es válida."})
+                if "stock_minimo" in data:
+                    minimum=nonnegative_number(data["stock_minimo"])
+                    if minimum is None:return self.json(400,{"error":"El stock mínimo no puede ser negativo."})
+                    data["stock_minimo"]=minimum
+                if "estado" in data and not isinstance(data["estado"],(bool,int)):return self.json(400,{"error":"El estado no es válido."})
             fields=[];values=[]
             for field in config[2]:
                 if field in data:fields.append(f"{field}=?");values.append(data[field])
             if not fields:return self.json(400,{"error":"No hay cambios."})
-            with db() as c:c.execute(f"UPDATE {config[0]} SET {','.join(fields)} WHERE id=?",(*values,record_id))
+            with db() as c:
+                if not c.execute(f"SELECT 1 FROM {config[0]} WHERE id=?",(record_id,)).fetchone():return self.json(404,{"error":"El registro no existe."})
+                c.execute(f"UPDATE {config[0]} SET {','.join(fields)} WHERE id=?",(*values,record_id))
             return self.json(200,{"ok":True})
         if resource=="actividades":
             if not self.require("personal.confirmar"):return

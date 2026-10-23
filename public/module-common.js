@@ -29,6 +29,24 @@ async function initSession() {
     $("#currentName").textContent = usuario.nombre;
     $("#currentRole").textContent = usuario.rol;
     $("#avatar").textContent = usuario.nombre[0].toUpperCase();
+    const routePermissions = {
+        "/piscinas.html": "piscinas.ver",
+        "/personal.html": "personal.ver",
+        "/inventario.html": "inventario.ver",
+        "/alertas.html": "alertas.ver",
+        "/app.html": "usuarios.ver",
+        "/roles.html": "roles.ver"
+    };
+    document.querySelectorAll("aside nav a").forEach(link => {
+        const route = new URL(link.href, location.origin).pathname;
+        const permission = routePermissions[route];
+        if (permission && !usuario.permisos.includes(permission)) link.hidden = true;
+    });
+    const currentPermission = routePermissions[location.pathname];
+    if (currentPermission && !usuario.permisos.includes(currentPermission)) {
+        location.href = "/dashboard.html";
+        throw new Error("No tiene permiso para acceder a este módulo.");
+    }
     $("#logout").onclick = async () => {
         await api("/api/logout", {
             method: "POST",

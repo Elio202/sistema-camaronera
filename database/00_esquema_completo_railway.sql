@@ -1,5 +1,5 @@
 -- ESQUEMA COMPLETO PARA UNA INSTALACIÓN NUEVA (Railway / MySQL 8 o MariaDB).
--- Consolida mariadb_schema.sql, 01, 01b (vista), 03, 05 y 06 en un solo paso.
+-- Consolida mariadb_schema.sql, 01, 01b (vista), 03, 05, 06, 09, 10 y 11 en un solo paso.
 -- Se ejecuta sobre la base ya seleccionada (no usa USE ni CREATE DATABASE).
 -- No carga piscinas, colaboradores ni datos demo.
 
@@ -99,7 +99,6 @@ CREATE TABLE IF NOT EXISTS ciclos_piscina (
   estado ENUM('Planificado', 'Sembrado', 'Cosechado', 'Cancelado') NOT NULL DEFAULT 'Planificado',
   fecha_siembra DATE NULL,
   fecha_cosecha DATE NULL,
-  observaciones VARCHAR(255) NULL,
   creado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   actualizado_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT uq_ciclo_piscina_numero UNIQUE (piscina_id, numero_ciclo),
@@ -178,6 +177,69 @@ CREATE TABLE IF NOT EXISTS movimientos_inventario (
   INDEX ix_movimiento_piscina (piscina_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Alertas centralizadas (paso 09).
+CREATE TABLE IF NOT EXISTS alertas (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  modulo VARCHAR(40) NOT NULL,
+  referencia_id BIGINT UNSIGNED NOT NULL,
+  clave VARCHAR(50) NOT NULL,
+  titulo VARCHAR(150) NOT NULL,
+  descripcion VARCHAR(300) NOT NULL,
+  nivel ENUM('Informativa', 'Advertencia', 'Crítica') NOT NULL DEFAULT 'Advertencia',
+  estado ENUM('Pendiente', 'Atendida', 'Resuelta') NOT NULL DEFAULT 'Pendiente',
+  generada_en DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  atendida_en DATETIME NULL,
+  atendida_por INT UNSIGNED NULL,
+  resuelta_en DATETIME NULL,
+  CONSTRAINT fk_alerta_usuario FOREIGN KEY (atendida_por) REFERENCES usuarios(id),
+  INDEX ix_alerta_estado_fecha (estado, generada_en),
+  INDEX ix_alerta_origen (modulo, clave, referencia_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Calidad del agua (paso 10).
+CREATE TABLE IF NOT EXISTS rangos_calidad_agua (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  parametro VARCHAR(40) NOT NULL,
+  unidad VARCHAR(20) NOT NULL,
+  minimo DECIMAL(10, 2) NOT NULL,
+  maximo DECIMAL(10, 2) NOT NULL,
+  activo BOOLEAN NOT NULL DEFAULT TRUE,
+  actualizado DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT uq_rango_calidad_parametro UNIQUE (parametro),
+  CONSTRAINT chk_rango_calidad_valores CHECK (minimo <= maximo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mediciones_calidad_agua (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  piscina_id INT UNSIGNED NOT NULL,
+  resp_id INT UNSIGNED NOT NULL,
+  usuario_id INT UNSIGNED NOT NULL,
+  fecha DATETIME NOT NULL,
+  oxigeno DECIMAL(6, 2) NOT NULL,
+  temp DECIMAL(6, 2) NOT NULL,
+  ph DECIMAL(4, 2) NOT NULL,
+  salinidad DECIMAL(6, 2) NOT NULL,
+  notas VARCHAR(300) NULL,
+  creado DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_medicion_calidad_piscina FOREIGN KEY (piscina_id) REFERENCES piscinas(id),
+  CONSTRAINT fk_medicion_calidad_responsable FOREIGN KEY (resp_id) REFERENCES colaboradores(id),
+  CONSTRAINT fk_medicion_calidad_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id),
+  CONSTRAINT chk_medicion_oxigeno CHECK (oxigeno >= 0),
+  CONSTRAINT chk_medicion_temperatura CHECK (temp >= 0),
+  CONSTRAINT chk_medicion_ph CHECK (ph BETWEEN 0 AND 14),
+  CONSTRAINT chk_medicion_salinidad CHECK (salinidad >= 0),
+  INDEX ix_medicion_calidad_piscina_fecha (piscina_id, fecha),
+  INDEX ix_medicion_calidad_fecha (fecha),
+  INDEX ix_medicion_calidad_responsable (resp_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO rangos_calidad_agua (parametro, unidad, minimo, maximo, activo) VALUES
+  ('Oxígeno disuelto', 'mg/L', 4.00, 8.00, TRUE),
+  ('Temperatura', '°C', 26.00, 32.00, TRUE),
+  ('pH', 'pH', 7.50, 8.50, TRUE),
+  ('Salinidad', 'ppt', 10.00, 35.00, TRUE)
+ON DUPLICATE KEY UPDATE unidad = VALUES(unidad);
+
 CREATE OR REPLACE VIEW vista_piscinas_ciclo_actual AS
 SELECT
   p.id AS piscina_id,
@@ -236,4 +298,5 @@ INSERT IGNORE INTO rol_permisos (rol_id, permiso_id)
 SELECT r.id, p.id FROM roles AS r JOIN permisos AS p
   ON p.modulo IN ('piscinas', 'personal', 'inventario') AND p.funcion = 'ver'
 WHERE r.nombre = 'Gerencia';
--- El Administrador recibe todos los permisos desde init_mariadb() al iniciar el servidor.
+-- El rol 6 (Encargado de Bodega), los permisos de alertas y todos los del Administrador
+-- los crea init_mariadb() al iniciar el servidor.
