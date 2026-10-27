@@ -29,7 +29,9 @@ load_env()
 USE_MARIADB=bool(os.getenv("DB_PASSWORD"))
 # Con HTTPS (Railway) la cookie de sesión debe viajar solo cifrada.
 SECURE_COOKIE="; Secure" if os.getenv("COOKIE_SECURE","").lower()=="true" else ""
-ADMIN_INITIAL_PASSWORD=os.getenv("ADMIN_INITIAL_PASSWORD","Admin123!")
+AUTO_INIT_SCHEMA=os.getenv("AUTO_INIT_SCHEMA","").lower()=="true"
+ADMIN_INITIAL_PASSWORD=os.getenv("ADMIN_INITIAL_PASSWORD","")
+ADMIN_INITIAL_EMAIL=os.getenv("ADMIN_INITIAL_EMAIL","admin@localhost.invalid")
 INTEGRITY_ERRORS=(sqlite3.IntegrityError,pymysql.err.IntegrityError) if pymysql else (sqlite3.IntegrityError,)
 
 def now(): return datetime.now(timezone.utc)
@@ -135,7 +137,7 @@ def init_db():
             c.execute("INSERT INTO usuarios(nombre_usuario,nombre,correo,password_hash,rol_id,creado_en) VALUES(?,?,?,?,1,?)", ("admin","Administrador del sistema","admin@orodelpacifico.local",password_hash("Admin123!"),iso()))
 
 def apply_schema():
-    """Ejecuta database/00_esquema_completo_railway.sql (idempotente: no borra datos)."""
+    """Crea objetos faltantes del esquema; requiere una cuenta con permisos DDL."""
     text=(ROOT/"database"/"00_esquema_completo_railway.sql").read_text(encoding="utf-8")
     text="\n".join(line for line in text.splitlines() if not line.strip().startswith("--"))
     statements=[s.strip() for s in re.split(r";\s*\n",text) if s.strip()]
@@ -147,8 +149,17 @@ def apply_schema():
     return len(statements)
 
 def init_mariadb():
-    with db() as c: missing=not c.execute("SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='roles'").fetchone()
-    if missing: print(f"Base vacía: esquema creado ({apply_schema()} sentencias).")
+    required={"roles","permisos","rol_permisos","usuarios","sesiones","fincas","modulos","piscinas","ciclos_piscina","colaboradores","actividades","productos_alimento","movimientos_inventario","alertas"}
+    with db() as c:
+        existing={row["TABLE_NAME"] for row in c.execute("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()").fetchall()}
+    missing=sorted(required-existing)
+    if missing and AUTO_INIT_SCHEMA:
+        print(f"Esquema incompleto: se aplicaron {apply_schema()} sentencias de instalación.")
+        with db() as c:
+            existing={row["TABLE_NAME"] for row in c.execute("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()").fetchall()}
+        missing=sorted(required-existing)
+    if missing:
+        raise RuntimeError("La base de datos no está preparada. Faltan: "+", ".join(missing)+". Aplique el esquema con una cuenta administradora; no otorgue permisos DDL al usuario de la aplicación.")
     roles=[(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes"),(6,"Encargado de Bodega","Control de entradas y salidas de alimento")]
     permissions=[*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar')),*(('alertas',x) for x in ('ver','atender'))]
     role_permissions={2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('alertas','atender')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar'),('alertas','ver')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver'),('alertas','ver'),('alertas','atender')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver')],6:[('inventario','ver'),('inventario','registrar'),('alertas','ver')]}
@@ -159,7 +170,9 @@ def init_mariadb():
         for role_id,allowed in role_permissions.items():
             for module,function in allowed: c.execute("INSERT IGNORE INTO rol_permisos SELECT ?,id FROM permisos WHERE modulo=? AND funcion=?",(role_id,module,function))
         if not c.execute("SELECT 1 FROM usuarios LIMIT 1").fetchone():
-            c.execute("INSERT INTO usuarios(nombre_usuario,nombre,correo,password_hash,rol_id,creado_en) VALUES(?,?,?,?,1,?)",("admin","Administrador del sistema","emarroquin@esteromar.gt",password_hash(ADMIN_INITIAL_PASSWORD),iso()))
+            if not valid_password(ADMIN_INITIAL_PASSWORD):
+                raise RuntimeError("Defina ADMIN_INITIAL_PASSWORD con al menos 8 caracteres, mayúscula, minúscula y número antes de crear el primer usuario.")
+            c.execute("INSERT INTO usuarios(nombre_usuario,nombre,correo,password_hash,rol_id,creado_en) VALUES(?,?,?,?,1,?)",("admin","Administrador del sistema",ADMIN_INITIAL_EMAIL,password_hash(ADMIN_INITIAL_PASSWORD),iso()))
 
 def user_payload(c, uid):
     user = c.execute("SELECT u.id,u.nombre_usuario,u.nombre,u.correo,u.estado,r.id rol_id,r.nombre rol FROM usuarios u JOIN roles r ON r.id=u.rol_id WHERE u.id=?",(uid,)).fetchone()

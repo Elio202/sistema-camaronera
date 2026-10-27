@@ -363,41 +363,38 @@ Antes de entregar una modificación:
 
 ## Producción en Railway (publicar cambios)
 
-La aplicación está publicada en https://web-production-af248.up.railway.app
-(proyecto Railway `sistema-camaronera`, entorno `production`).
+La configuración del repositorio debe ser reutilizable y no depender de una
+cuenta, dominio, usuario o proyecto específico de Railway.
 
 ### Cómo está montada
 
-- Servicio `web`: ejecuta `python server.py` (definido en `railway.json`). Railway
-  entrega `PORT` y las variables `HOST=0.0.0.0`, `COOKIE_SECURE=true` y `DB_*`.
+- El servicio web ejecuta `python server.py` (definido en `railway.json`). Configurar
+  `PORT`, `HOST=0.0.0.0`, `COOKIE_SECURE=true` y las variables `DB_*`.
   En local nada cambia: sin esas variables el servidor sigue en `127.0.0.1:8000`.
-- Servicio `MySQL`: **MySQL 8, no MariaDB**. La base se llama `railway`, no
-  `pacific_gold`. La aplicación se conecta con el usuario limitado
-  `pacific_gold_app` (solo SELECT/INSERT/UPDATE/DELETE).
-- Elio tiene el usuario `elio` con todos los permisos sobre la base `railway`
-  para administrarla desde HeidiSQL (red "MariaDB or MySQL (TCP/IP)"). Host,
-  puerto y contraseña se comparten en privado; nunca escribirlos en el repo.
+- Railway utiliza MySQL 8. El nombre real de la base se establece con `DB_NAME`.
+  La aplicación debe conectarse con un usuario limitado a
+  SELECT/INSERT/UPDATE/DELETE. Las migraciones usan una cuenta administradora
+  separada y temporal.
 - `requirements.txt` incluye `cryptography`: MySQL 8 lo exige para autenticar.
   No quitarlo.
-- Si la base está vacía, `server.py` crea toda la estructura desde
-  `database/00_esquema_completo_railway.sql`. Ese archivo es el esquema completo
-  para instalaciones nuevas: al crear tablas o columnas, actualizarlo también.
+- `database/00_esquema_completo_railway.sql` contiene el esquema para instalaciones
+  nuevas. `server.py` no lo aplica automáticamente salvo que se configure
+  explícitamente `AUTO_INIT_SCHEMA=true`; esta opción solo debe utilizarse durante
+  el aprovisionamiento con una cuenta DDL y desactivarse inmediatamente después.
 
-### La base de datos en la nube es la principal
+### Protección de los datos
 
-Desde el 16 de octubre de 2026 la base `railway` tiene datos reales registrados
-desde la página (usuarios, actividades, inventario). La base local
-`pacific_gold` ya no es igual a la de la nube.
-
-- **Nunca cargar un respaldo de la base local sobre la nube**: borraría lo que
-  se registró en la página.
-- Probar primero en la base local y aplicar en la nube solo lo que ya funcionó.
+- La base local y la de producción son independientes.
+- Hacer un respaldo antes de importar, migrar o reemplazar datos en producción.
+- No asumir que un respaldo local es más reciente que producción; comparar fechas
+  y registros antes de decidir cuál fuente debe prevalecer.
+- Probar primero en local y aplicar en producción solo cambios verificados.
 
 ### Pasos para publicar un cambio
 
 1. Trabajar en la rama `main` y probar en local (`python server.py`).
 2. **Si el cambio necesita tablas o columnas nuevas, aplicar primero la
-   migración en la nube** (HeidiSQL con el usuario `elio`, base `railway`).
+   migración en la nube** con una cuenta administradora separada.
    Revisar que sea compatible con MySQL 8:
    - quitar `USE pacific_gold;` (en la nube la base es `railway`);
    - `ADD COLUMN IF NOT EXISTS` y `DROP COLUMN IF EXISTS` **solo existen en
@@ -406,14 +403,14 @@ desde la página (usuarios, actividades, inventario). La base local
      `INSERT IGNORE`, `ON DUPLICATE KEY UPDATE`).
    Si el código se publica antes que la migración, la página falla.
 3. Confirmar los cambios y subirlos: `git push origin main`.
-4. Publicar desde la carpeta del repositorio, en `main` y sin cambios pendientes:
+4. Publicar desde la carpeta del repositorio, en `main` y sin cambios pendientes,
+   utilizando el mecanismo de despliegue autorizado para la cuenta:
    ```powershell
    git status          # debe estar limpio y en main
    railway up --service web --ci
    ```
-   Requiere la variable de entorno `RAILWAY_TOKEN` con el token del proyecto
-   (Project Token de Railway, entregado en privado). **Nunca escribir el token en
-   el repositorio, en `.env` confirmado ni en mensajes públicos.**
+   Si se usa un Project Token, guardarlo únicamente como secreto del entorno.
+   Nunca escribir tokens en el repositorio, documentación ni mensajes públicos.
 5. Verificar: `railway logs --service web` debe mostrar
    `Sistema disponible en http://0.0.0.0:...` y la página debe abrir e iniciar
    sesión.
@@ -424,5 +421,5 @@ desde la página (usuarios, actividades, inventario). La base local
   `git push` y `railway up --service web --ci` de nuevo.
 - Los datos no se pierden al publicar: el código y la base son servicios
   separados. Lo único que cambia la base son las migraciones que se ejecuten.
-- Pendiente conocido: en la nube `ciclos_piscina` todavía tiene la columna
-  `observaciones` (la migración 11 no se aplicó allí). El código ya no la usa.
+- Revisar las migraciones aplicadas en cada entorno antes de publicar código que
+  dependa de tablas o columnas nuevas.
