@@ -192,6 +192,17 @@ def nonnegative_number(value):
         return number if number >= 0 else None
     except (TypeError,ValueError): return None
 
+def report_dates(parsed):
+    query=parse_qs(parsed.query)
+    start=query.get("desde",[""])[0].strip()
+    end=query.get("hasta",[""])[0].strip()
+    try:
+        if start: datetime.strptime(start,"%Y-%m-%d")
+        if end: datetime.strptime(end,"%Y-%m-%d")
+    except ValueError: return None
+    if start and end and start>end: return None
+    return start,end
+
 class App(SimpleHTTPRequestHandler):
     def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(PUBLIC),**kwargs)
     def end_headers(self):
@@ -280,6 +291,108 @@ class App(SimpleHTTPRequestHandler):
                     LIMIT 500""").fetchall()
                 totals={state:c.execute("SELECT COUNT(*) total FROM alertas WHERE estado=?",(state,)).fetchone()["total"] for state in ("Pendiente","Atendida","Resuelta")}
                 return self.json(200,{"alertas":[dict(row) for row in rows],"totales":totals})
+        if path=="/api/reportes":
+            if not self.require("reportes.ver"): return
+            dates=report_dates(parsed)
+            if dates is None:return self.json(400,{"error":"El rango de fechas no es válido."})
+            start,end=dates
+            report_type=parse_qs(parsed.query).get("tipo",["piscinas"])[0]
+            reports={
+                "piscinas":{
+                    "titulo":"Catálogo de piscinas y ciclo actual",
+                    "columnas":[("codigo_productivo","Código productivo"),("finca","Finca"),("modulo","Módulo"),("tipo","Tipo"),("area_m2","Área m²"),("estado_ciclo","Estado del ciclo")],
+                    "sql":"SELECT codigo_productivo,finca,modulo,tipo,area_m2,COALESCE(estado_ciclo,'Sin ciclo') estado_ciclo FROM vista_piscinas_ciclo_actual ORDER BY finca,modulo,piscina",
+                    "fecha":None},
+                "ciclos":{
+                    "titulo":"Historial de ciclos",
+                    "columnas":[("codigo","Código"),("finca","Finca"),("modulo","Módulo"),("estado","Estado"),("siembra","Siembra"),("cosecha","Cosecha")],
+                    "sql":"SELECT CONCAT(p.codigo,'-',c.numero_ciclo) codigo,f.nombre finca,m.codigo modulo,c.estado,c.fecha_siembra siembra,c.fecha_cosecha cosecha FROM ciclos_piscina c JOIN piscinas p ON p.id=c.piscina_id JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id",
+                    "fecha":"COALESCE(c.fecha_siembra,DATE(c.creado_en))"},
+                "colaboradores":{
+                    "titulo":"Catálogo de colaboradores",
+                    "columnas":[("codigo","Código"),("nombre","Nombre"),("puesto","Puesto"),("ingreso","Fecha de ingreso"),("estado","Estado")],
+                    "sql":"SELECT codigo_empleado codigo,nombre,puesto,fecha_ingreso ingreso,IF(estado=1,'Activo','Inactivo') estado FROM colaboradores",
+                    "fecha":"fecha_ingreso"},
+                "actividades":{
+                    "titulo":"Actividades del personal",
+                    "columnas":[("actividad","Actividad"),("responsable","Responsable"),("piscina","Piscina"),("inicio","Inicio"),("fin","Finalización"),("estado","Estado")],
+                    "sql":"SELECT a.descripcion actividad,c.nombre responsable,COALESCE(v.codigo_productivo,p.codigo) piscina,a.fecha_inicio inicio,COALESCE(a.fecha_fin,a.fecha_limite) fin,a.estado FROM actividades a JOIN colaboradores c ON c.id=a.colaborador_id JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id",
+                    "fecha":"DATE(COALESCE(a.fecha_inicio,a.fecha_limite))"},
+                "inventario":{
+                    "titulo":"Movimientos de inventario",
+                    "columnas":[("fecha","Fecha"),("tipo","Movimiento"),("producto","Producto"),("cantidad","Cantidad"),("unidad","Unidad"),("lote","Lote"),("piscina","Piscina"),("responsable","Responsable")],
+                    "sql":"SELECT mi.creado_en fecha,mi.tipo,pa.nombre producto,mi.cantidad,pa.unidad,mi.lote,COALESCE(v.codigo_productivo,p.codigo,'—') piscina,COALESCE(c.nombre,'—') responsable FROM movimientos_inventario mi JOIN productos_alimento pa ON pa.id=mi.producto_id LEFT JOIN piscinas p ON p.id=mi.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id LEFT JOIN colaboradores c ON c.id=mi.responsable_id",
+                    "fecha":"DATE(mi.creado_en)"},
+                "alertas":{
+                    "titulo":"Historial de alertas",
+                    "columnas":[("fecha","Fecha"),("modulo","Módulo"),("titulo","Alerta"),("nivel","Nivel"),("estado","Estado"),("atendida_por","Atendida por")],
+                    "sql":"SELECT a.generada_en fecha,a.modulo,a.titulo,a.nivel,a.estado,COALESCE(u.nombre,'—') atendida_por FROM alertas a LEFT JOIN usuarios u ON u.id=a.atendida_por",
+                    "fecha":"DATE(a.generada_en)"}
+            }
+            config=reports.get(report_type)
+            if not config:return self.json(400,{"error":"El reporte seleccionado no existe."})
+            sql=config["sql"]; args=[]
+            if config["fecha"] and (start or end):
+                conditions=[]
+                if start:conditions.append(f"{config['fecha']}>=?");args.append(start)
+                if end:conditions.append(f"{config['fecha']}<=?");args.append(end)
+                sql+=f" WHERE {' AND '.join(conditions)}"
+            if report_type!="piscinas":sql+=" ORDER BY 1 DESC"
+            with db() as c:
+                if report_type=="actividades":refresh_activity_statuses(c)
+                if report_type=="alertas":
+                    if not alerts_table_ready(c):return self.json(503,{"error":"Ejecute primero la migración del módulo de alertas."})
+                    sync_alerts(c)
+                rows=[dict(row) for row in c.execute(sql,args).fetchall()]
+            columns=[{"campo":field,"titulo":title} for field,title in config["columnas"]]
+            return self.json(200,{"reporte":{"tipo":report_type,"titulo":config["titulo"],"columnas":columns,"filas":rows,"desde":start,"hasta":end}})
+        if path=="/api/reportes-dashboard":
+            if not self.require("reportes.ver"): return
+            dates=report_dates(parsed)
+            if dates is None:return self.json(400,{"error":"El rango de fechas no es válido."})
+            start,end=dates; query=parse_qs(parsed.query)
+            try:
+                farm_id=int(query.get("finca",[""])[0]) if query.get("finca",[""])[0] else None
+                module_id=int(query.get("modulo",[""])[0]) if query.get("modulo",[""])[0] else None
+            except ValueError:return self.json(400,{"error":"La finca o el módulo seleccionado no es válido."})
+            def conditions(date_field=None,include_scope=True):
+                parts=[];values=[]
+                if date_field and start:parts.append(f"{date_field}>=?");values.append(start)
+                if date_field and end:parts.append(f"{date_field}<=?");values.append(end)
+                if include_scope and farm_id:parts.append("f.id=?");values.append(farm_id)
+                if include_scope and module_id:parts.append("m.id=?");values.append(module_id)
+                return (" WHERE "+" AND ".join(parts) if parts else ""),values
+            with db() as c:
+                refresh_activity_statuses(c)
+                farms=[dict(row) for row in c.execute("SELECT id,nombre FROM fincas WHERE estado=1 ORDER BY nombre").fetchall()]
+                modules=[dict(row) for row in c.execute("SELECT id,finca_id,codigo FROM modulos WHERE estado=1 ORDER BY codigo").fetchall()]
+                where,args=conditions()
+                pool=c.execute("""SELECT COUNT(*) total,
+                    SUM(CASE WHEN COALESCE(v.estado_ciclo,'')='Sembrado' THEN 1 ELSE 0 END) sembradas,
+                    SUM(CASE WHEN COALESCE(v.estado_ciclo,'')<>'Sembrado' THEN 1 ELSE 0 END) disponibles,
+                    SUM(CASE WHEN v.estado_ciclo='Cosechado' THEN 1 ELSE 0 END) cosechadas
+                    FROM piscinas p JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id
+                    LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id"""+where,args).fetchone()
+                where,args=conditions("DATE(COALESCE(c.fecha_siembra,c.creado_en))")
+                cycles=c.execute("""SELECT c.estado etiqueta,COUNT(*) valor FROM ciclos_piscina c
+                    JOIN piscinas p ON p.id=c.piscina_id JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY c.estado ORDER BY valor DESC",args).fetchall()
+                where,args=conditions("DATE(COALESCE(a.fecha_inicio,a.fecha_limite))")
+                activities=c.execute("""SELECT a.estado etiqueta,COUNT(*) valor FROM actividades a
+                    JOIN piscinas p ON p.id=a.piscina_id JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY a.estado ORDER BY valor DESC",args).fetchall()
+                where,args=conditions("DATE(mi.creado_en)")
+                movements=c.execute("""SELECT mi.tipo etiqueta,COALESCE(SUM(mi.cantidad),0) valor FROM movimientos_inventario mi
+                    LEFT JOIN piscinas p ON p.id=mi.piscina_id LEFT JOIN modulos m ON m.id=p.modulo_id LEFT JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY mi.tipo ORDER BY mi.tipo",args).fetchall()
+                alert_where,alert_args=conditions("DATE(a.generada_en)",False)
+                alert_rows=[]
+                if alerts_table_ready(c):
+                    sync_alerts(c)
+                    alert_rows=c.execute("SELECT a.estado etiqueta,COUNT(*) valor FROM alertas a"+alert_where+" GROUP BY a.estado ORDER BY valor DESC",alert_args).fetchall()
+                metrics={
+                    "piscinas":int(pool["total"] or 0),"disponibles":int(pool["disponibles"] or 0),"sembradas":int(pool["sembradas"] or 0),"cosechadas":int(pool["cosechadas"] or 0),
+                    "colaboradores":c.execute("SELECT COUNT(*) total FROM colaboradores WHERE estado=1").fetchone()["total"],
+                    "stock_bajo":c.execute("SELECT COUNT(*) total FROM productos_alimento WHERE estado=1 AND stock_actual<=stock_minimo").fetchone()["total"],
+                    "alertas":sum(int(row["valor"]) for row in alert_rows if row["etiqueta"]=="Pendiente")}
+            return self.json(200,{"dashboard":{"metricas":metrics,"ciclos":[dict(row) for row in cycles],"actividades":[dict(row) for row in activities],"movimientos":[dict(row) for row in movements],"alertas":[dict(row) for row in alert_rows],"fincas":farms,"modulos":modules,"desde":start,"hasta":end}})
         if path=="/api/piscinas":
             if not self.require("piscinas.ver"): return
             if not module_tables_ready(): return self.json(503,{"error":"Ejecute la migración de módulos en MariaDB."})
