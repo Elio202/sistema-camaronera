@@ -49,7 +49,7 @@ async function load() {
         .map(item => `<option value="${item.id}">${safe(item.codigo_empleado)} · ${safe(item.nombre)}</option>`)
         .join("");
 
-    $("#taskPool").innerHTML = pools
+    $("#taskPool").innerHTML = '<option value="">Trabajos varios (sin piscina)</option>' + pools
         .filter(item => item.estado)
         .map(item => `<option value="${item.id}">${safe(item.codigo_productivo)}</option>`)
         .join("");
@@ -107,7 +107,7 @@ function renderTasks() {
         return `<tr>
             <td>${safe(item.descripcion)}</td>
             <td>${safe(item.colaborador)}</td>
-            <td><b>${safe(item.piscina)}</b></td>
+            <td><b>${safe(item.piscina || "Trabajos varios")}</b></td>
             <td>${formatSchedule(item)}</td>
             <td><span class="badge ${item.estado === "Vencida" ? "off" : item.estado === "Pendiente" ? "pending" : ""}">${safe(item.estado)}</span></td>
             <td>${action}</td>
@@ -244,7 +244,7 @@ $("#taskForm").onsubmit = async event => {
             method: "POST",
             body: JSON.stringify({
                 colaborador_id: $("#taskStaff").value,
-                piscina_id: $("#taskPool").value,
+                piscina_id: $("#taskPool").value || null,
                 descripcion: $("#taskDescription").value.trim(),
                 fecha_inicio: $("#taskStart").value,
                 fecha_fin: $("#taskEnd").value

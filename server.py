@@ -329,7 +329,7 @@ class App(SimpleHTTPRequestHandler):
                 "actividades":{
                     "titulo":"Actividades del personal",
                     "columnas":[("actividad","Actividad"),("responsable","Responsable"),("piscina","Piscina"),("inicio","Inicio"),("fin","Finalización"),("estado","Estado")],
-                    "sql":"SELECT a.descripcion actividad,c.nombre responsable,COALESCE(v.codigo_productivo,p.codigo) piscina,a.fecha_inicio inicio,COALESCE(a.fecha_fin,a.fecha_limite) fin,a.estado FROM actividades a JOIN colaboradores c ON c.id=a.colaborador_id JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id",
+                    "sql":"SELECT a.descripcion actividad,c.nombre responsable,COALESCE(v.codigo_productivo,p.codigo,'Trabajos varios') piscina,a.fecha_inicio inicio,COALESCE(a.fecha_fin,a.fecha_limite) fin,a.estado FROM actividades a JOIN colaboradores c ON c.id=a.colaborador_id LEFT JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id",
                     "fecha":"DATE(COALESCE(a.fecha_inicio,a.fecha_limite))"},
                 "inventario":{
                     "titulo":"Movimientos de inventario",
@@ -391,7 +391,7 @@ class App(SimpleHTTPRequestHandler):
                     JOIN piscinas p ON p.id=c.piscina_id JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY c.estado ORDER BY valor DESC",args).fetchall()
                 where,args=conditions("DATE(COALESCE(a.fecha_inicio,a.fecha_limite))")
                 activities=c.execute("""SELECT a.estado etiqueta,COUNT(*) valor FROM actividades a
-                    JOIN piscinas p ON p.id=a.piscina_id JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY a.estado ORDER BY valor DESC",args).fetchall()
+                    LEFT JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN modulos m ON m.id=p.modulo_id LEFT JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY a.estado ORDER BY valor DESC",args).fetchall()
                 where,args=conditions("DATE(mi.creado_en)")
                 movements=c.execute("""SELECT mi.tipo etiqueta,COALESCE(SUM(mi.cantidad),0) valor FROM movimientos_inventario mi
                     LEFT JOIN piscinas p ON p.id=mi.piscina_id LEFT JOIN modulos m ON m.id=p.modulo_id LEFT JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY mi.tipo ORDER BY mi.tipo",args).fetchall()
@@ -434,7 +434,7 @@ class App(SimpleHTTPRequestHandler):
             if not self.require("personal.ver"): return
             with db() as c:
                 refresh_activity_statuses(c)
-                rows=c.execute("SELECT a.*,c.nombre colaborador,COALESCE(v.codigo_productivo,p.codigo) piscina,u.nombre asignado_por FROM actividades a JOIN colaboradores c ON c.id=a.colaborador_id JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id JOIN usuarios u ON u.id=a.usuario_asigna ORDER BY COALESCE(a.fecha_inicio,a.fecha_limite) DESC").fetchall()
+                rows=c.execute("SELECT a.*,c.nombre colaborador,COALESCE(v.codigo_productivo,p.codigo,'Trabajos varios') piscina,u.nombre asignado_por FROM actividades a JOIN colaboradores c ON c.id=a.colaborador_id LEFT JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id JOIN usuarios u ON u.id=a.usuario_asigna ORDER BY COALESCE(a.fecha_inicio,a.fecha_limite) DESC").fetchall()
                 return self.json(200,{"actividades":[dict(x) for x in rows]})
         if path=="/api/productos":
             if not self.require("inventario.ver"): return
@@ -545,18 +545,19 @@ class App(SimpleHTTPRequestHandler):
             inicio=str(data.get("fecha_inicio","")).replace("T"," ")
             fin=str(data.get("fecha_fin","")).replace("T"," ")
             try:
-                colaborador=int(data.get("colaborador_id")); piscina=int(data.get("piscina_id"))
+                colaborador=int(data.get("colaborador_id")); piscina=int(data["piscina_id"]) if data.get("piscina_id") else None
                 inicio_dt=datetime.fromisoformat(inicio); fin_dt=datetime.fromisoformat(fin)
-            except (TypeError,ValueError): return self.json(400,{"error":"Complete colaborador, piscina, inicio y finalización válidos."})
+            except (TypeError,ValueError): return self.json(400,{"error":"Complete colaborador, inicio y finalización válidos."})
             if not descripcion: return self.json(400,{"error":"La descripción debe contener entre 5 y 300 caracteres."})
             if inicio_dt.date()!=fin_dt.date(): return self.json(400,{"error":"La actividad debe iniciar y finalizar el mismo día."})
             if fin_dt<=inicio_dt: return self.json(400,{"error":"La hora de finalización debe ser posterior a la hora de inicio."})
             with db() as c:
-                valid=c.execute("""SELECT 1 FROM colaboradores c,piscinas p
+                valid=c.execute("""SELECT 1 FROM colaboradores c
                     WHERE c.id=? AND c.estado=1
-                    AND (UPPER(TRIM(c.puesto)) LIKE 'AUXILIAR%%' OR UPPER(TRIM(c.puesto)) LIKE 'SUPERVISOR%%')
-                    AND p.id=? AND p.estado=1""",(colaborador,piscina)).fetchone()
-                if not valid:return self.json(400,{"error":"Solo puede asignar actividades a auxiliares o supervisores activos y a piscinas habilitadas."})
+                    AND (UPPER(TRIM(c.puesto)) LIKE 'AUXILIAR%%' OR UPPER(TRIM(c.puesto)) LIKE 'SUPERVISOR%%')""",(colaborador,)).fetchone()
+                if not valid:return self.json(400,{"error":"Solo puede asignar actividades a auxiliares o supervisores activos."})
+                if piscina and not c.execute("SELECT 1 FROM piscinas WHERE id=? AND estado=1",(piscina,)).fetchone():
+                    return self.json(400,{"error":"La piscina seleccionada no está habilitada."})
                 overlap=c.execute("""SELECT 1 FROM actividades
                     WHERE colaborador_id=? AND estado IN ('Pendiente','En proceso')
                     AND fecha_inicio IS NOT NULL

@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS colaboradores (
 CREATE TABLE IF NOT EXISTS actividades (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   colaborador_id INT UNSIGNED NOT NULL,
-  piscina_id INT UNSIGNED NOT NULL,
+  piscina_id INT UNSIGNED NULL,
   descripcion VARCHAR(300) NOT NULL,
   fecha_limite DATETIME NOT NULL,
   estado ENUM('Pendiente','Realizada','Vencida') NOT NULL DEFAULT 'Pendiente',
