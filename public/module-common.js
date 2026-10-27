@@ -29,11 +29,20 @@ async function initSession() {
     $("#currentName").textContent = usuario.nombre;
     $("#currentRole").textContent = usuario.rol;
     $("#avatar").textContent = usuario.nombre[0].toUpperCase();
+    const navigation=document.querySelector("aside nav");
+    if (navigation && !navigation.querySelector('a[href="/reportes.html"]')) {
+        const link=document.createElement("a");
+        link.href="/reportes.html";
+        link.textContent="Reportes";
+        const administration=[...navigation.querySelectorAll("small")].find(item => item.textContent.includes("ADMINISTRACIÓN"));
+        navigation.insertBefore(link,administration || null);
+    }
     const routePermissions = {
         "/piscinas.html": "piscinas.ver",
         "/personal.html": "personal.ver",
         "/inventario.html": "inventario.ver",
         "/alertas.html": "alertas.ver",
+        "/reportes.html": "reportes.ver",
         "/app.html": "usuarios.ver",
         "/roles.html": "roles.ver"
     };
@@ -41,6 +50,7 @@ async function initSession() {
         const route = new URL(link.href, location.origin).pathname;
         const permission = routePermissions[route];
         if (permission && !usuario.permisos.includes(permission)) link.hidden = true;
+        if (route===location.pathname) link.classList.add("active");
     });
     const currentPermission = routePermissions[location.pathname];
     if (currentPermission && !usuario.permisos.includes(currentPermission)) {

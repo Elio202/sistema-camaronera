@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Reportes | Pacific Gold</title>
+    <link rel="stylesheet" href="styles.css?v=reports2">
+</head>
+<body class="app-page reports-page">
+    <aside>
+        <div class="brand"><span class="brand-mark">OP</span><span>Pacific Gold</span></div>
+        <nav>
+            <small>OPERACIÓN</small>
+            <a href="/dashboard.html">Panel principal</a>
+            <a href="/piscinas.html">Piscinas</a>
+            <a href="/personal.html">Personal y actividades</a>
+            <a href="/inventario.html">Inventario</a>
+            <a href="/alertas.html">Alertas</a>
+            <a class="active" href="/reportes.html">Reportes</a>
+            <small>ADMINISTRACIÓN</small>
+            <a href="/app.html">Usuarios</a>
+            <a href="/roles.html">Roles y permisos</a>
+        </nav>
+        <div class="sidebar-foot">Sistema acuícola<br><span>Versión prototipo 2.0</span></div>
+    </aside>
+    <main class="content">
+        <header>
+            <div><span class="eyebrow">Consulta y exportación</span><h1>Reportes</h1></div>
+            <div class="userbox"><div class="avatar" id="avatar">A</div><div><b id="currentName">...</b><small id="currentRole">...</small></div><button id="logout">Salir</button></div>
+        </header>
+        <div class="tabs report-tabs"><button class="tab active" data-report-view="dashboard">Dashboard gerencial</button><button class="tab" data-report-view="detail">Reportes detallados</button></div>
+        <section id="reportDashboard" class="report-dashboard">
+            <form id="dashboardFilters" class="dashboard-filters table-card">
+                <label>Desde<input id="dashFrom" type="date"></label>
+                <label>Hasta<input id="dashTo" type="date"></label>
+                <label>Finca<select id="dashFarm"><option value="">Todas las fincas</option></select></label>
+                <label>Módulo<select id="dashModule"><option value="">Todos los módulos</option></select></label>
+                <button class="primary compact" type="submit">Actualizar</button>
+            </form>
+            <div id="dashboardMessage" class="message"></div>
+            <section class="dashboard-grid report-kpis">
+                <article><span>Total de piscinas</span><strong id="kpiPools">0</strong><small>Unidades del filtro</small></article>
+                <article><span>Piscinas disponibles</span><strong id="kpiAvailable">0</strong><small>Sin ciclo sembrado</small></article>
+                <article><span>Piscinas sembradas</span><strong id="kpiSeeded">0</strong><small>En producción</small></article>
+                <article><span>Colaboradores activos</span><strong id="kpiStaff">0</strong><small>Personal disponible</small></article>
+                <article class="warning-card"><span>Productos con stock bajo</span><strong id="kpiStock">0</strong><small>Requieren abastecimiento</small></article>
+                <article class="warning-card"><span>Alertas pendientes</span><strong id="kpiAlerts">0</strong><small>Requieren seguimiento</small></article>
+            </section>
+            <section class="chart-grid">
+                <article class="chart-card"><div><h2>Estados de ciclos</h2><p class="muted">Distribución de ciclos registrados.</p></div><div id="cycleChart" class="bar-chart"></div></article>
+                <article class="chart-card"><div><h2>Actividades</h2><p class="muted">Seguimiento del trabajo programado.</p></div><div id="activityChart" class="bar-chart"></div></article>
+                <article class="chart-card"><div><h2>Movimientos de alimento</h2><p class="muted">Cantidad acumulada por movimiento.</p></div><div id="movementChart" class="bar-chart"></div></article>
+                <article class="chart-card"><div><h2>Estados de alertas</h2><p class="muted">Situación de las alertas generadas.</p></div><div id="alertChart" class="bar-chart"></div></article>
+            </section>
+        </section>
+        <section id="reportDetail" class="table-card report-card hidden">
+            <div class="toolbar report-toolbar">
+                <div><h2 id="reportTitle">Reporte operativo</h2><p class="muted" id="reportDescription">Selecciona el módulo y el período que deseas consultar.</p></div>
+                <div class="toolbar-actions report-actions"><button class="secondary" id="exportCsv">Exportar CSV</button><button class="primary compact" id="printReport">Imprimir / PDF</button></div>
+            </div>
+            <form id="reportFilters" class="report-filters">
+                <label>Reporte<select id="reportType">
+                    <option value="piscinas">Piscinas y ciclo actual</option>
+                    <option value="ciclos">Historial de ciclos</option>
+                    <option value="colaboradores">Colaboradores</option>
+                    <option value="actividades">Actividades del personal</option>
+                    <option value="inventario">Movimientos de inventario</option>
+                    <option value="alertas">Alertas</option>
+                </select></label>
+                <label>Desde<input id="dateFrom" type="date"></label>
+                <label>Hasta<input id="dateTo" type="date"></label>
+                <button class="primary compact" type="submit">Generar reporte</button>
+            </form>
+            <div class="report-summary"><b id="resultCount">0 registros</b><span id="periodText">Todos los registros</span></div>
+            <div id="reportMessage" class="message"></div>
+            <div class="table-scroll report-table"><table><thead id="reportHead"></thead><tbody id="reportRows"></tbody></table></div>
+        </section>
+    </main>
+    <script src="module-common.js?v=5"></script>
+    <script src="reportes.js?v=2"></script>
+</body>
+</html>
