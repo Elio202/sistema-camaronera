@@ -138,7 +138,7 @@ def init_db():
 
 def apply_schema():
     """Crea objetos faltantes del esquema; requiere una cuenta con permisos DDL."""
-    text=(ROOT/"database"/"00_esquema_completo_railway.sql").read_text(encoding="utf-8")
+    text=(ROOT/"database"/"schema"/"schema.sql").read_text(encoding="utf-8")
     text="\n".join(line for line in text.splitlines() if not line.strip().startswith("--"))
     statements=[s.strip() for s in re.split(r";\s*\n",text) if s.strip()]
     conn=MariaConnection()

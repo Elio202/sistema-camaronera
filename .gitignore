@@ -11,6 +11,7 @@ __pycache__/
 .coverage
 .vscode/
 .idea/
+.local-backup/
 Thumbs.db
 .DS_Store
 docs/empleados_original.csv

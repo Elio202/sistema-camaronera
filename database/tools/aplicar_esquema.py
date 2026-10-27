@@ -1,4 +1,4 @@
-"""Aplica database/00_esquema_completo_railway.sql sobre la base configurada en DB_*.
+"""Aplica database/schema/schema.sql sobre la base configurada en DB_*.
 
 Utilizar únicamente durante una instalación o actualización controlada, con una
 cuenta que tenga permisos DDL. La aplicación normal debe usar una cuenta limitada.
@@ -7,7 +7,7 @@ No imprime credenciales.
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import server  # carga .env y expone la conexión configurada
 
 if not server.USE_MARIADB:

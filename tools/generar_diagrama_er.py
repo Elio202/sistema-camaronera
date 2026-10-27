@@ -93,5 +93,6 @@ for name, (x, y, implemented, fields) in tables.items():
 
 svg.append('<text x="50" y="2410" font-family="Arial" font-size="15" fill="#667b94">Las tablas planificadas representan el diseño propuesto y podrán ajustarse durante el desarrollo de cada módulo.</text></svg>')
 
-Path(__file__).with_name("DIAGRAMA_ER_COMPLETO.svg").write_text("\n".join(svg), encoding="utf-8")
-print("DIAGRAMA_ER_COMPLETO.svg generado")
+output = Path(__file__).resolve().parents[1] / "docs" / "diagramas" / "DIAGRAMA_ER_COMPLETO.svg"
+output.write_text("\n".join(svg), encoding="utf-8")
+print(f"Diagrama generado en {output}")

@@ -788,19 +788,6 @@ dialog form {
     --shadow: 0 24px 70px rgba(5, 35, 75, .16)
 }
 
-.brand-panel {
-    background: linear-gradient(150deg, #061a3a, #0a3e7d 62%, #1265ba)
-}
-
-.brand-logo {
-    display: block;
-    width: 210px;
-    max-height: 105px;
-    object-fit: contain;
-    object-position: left center;
-    filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .2))
-}
-
 .forgot {
     text-align: right;
     margin-top: 12px
@@ -820,115 +807,6 @@ dialog form {
 .app-page aside .brand .brand-mark,
 .app-page aside .brand .brand-mark+span {
     display: none
-}
-
-.app-page aside .brand::after {
-    content: "";
-    display: block;
-    width: 175px;
-    height: 80px;
-    background: url('logo-pacific-gold.png') left center/contain no-repeat
-}
-
-/* Logo vertical Pacific Gold V2 */
-.login-page .brand-logo {
-    content: url('logo-pacific-gold-v2.png');
-    width: 185px;
-    max-height: 230px
-}
-
-.app-page aside .brand::after {
-    width: 175px;
-    height: 125px;
-    background-image: url('logo-pacific-gold-sidebar.png')
-}
-
-/* Composición del login: mensaje centrado y logo sobre el panel claro */
-.login-page .brand-panel {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center
-}
-
-.login-page .brand-copy {
-    margin: 0;
-    max-width: 700px
-}
-
-.login-page .brand-copy p {
-    margin-left: auto;
-    margin-right: auto
-}
-
-.login-page .brand-panel>.brand {
-    display: none
-}
-
-.login-page .login-panel {
-    position: relative;
-    padding: 50px
-}
-
-.login-page .login-card {
-    width: min(380px, 100%);
-    margin: auto;
-    align-self: center
-}
-
-.login-page .login-card h2 {
-    font-size: 34px;
-    margin: 8px 0
-}
-
-.login-page .login-card>label {
-    margin-top: 20px
-}
-
-.login-page .input-wrap,
-.login-page .login-card .primary {
-    height: 50px
-}
-
-.login-page .help {
-    margin-top: 20px
-}
-
-.login-page .login-panel::before {
-    content: "";
-    position: absolute;
-    top: 8px;
-    left: auto;
-    right: 22px;
-    transform: none;
-    width: 220px;
-    height: 220px;
-    background: url('logo-pacific-gold-v2.png') center/contain no-repeat
-}
-
-@media(max-width:850px) {
-    .login-page .brand-panel {
-        min-height: 180px;
-        padding: 0
-    }
-
-    .login-page .brand-copy {
-        margin: 0
-    }
-
-    .login-page .login-panel {
-        min-height: 720px;
-        padding: 190px 25px 48px
-    }
-
-    .login-page .login-panel::before {
-        top: 18px;
-        left: 50%;
-        right: auto;
-        transform: translateX(-50%);
-        width: 185px;
-        height: 195px
-    }
 }
 
 .development-card {
@@ -981,9 +859,11 @@ dialog form {
 }
 
 .app-page aside .brand::after {
+    content: "";
+    display: block;
     width: 220px;
     height: 185px;
-    background-position: center
+    background: url('../images/logo-sidebar.png') center/contain no-repeat
 }
 
 @media(max-width:850px) {

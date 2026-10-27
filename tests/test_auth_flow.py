@@ -57,7 +57,7 @@ class AuthFlowTests(unittest.TestCase):
         status,body=Client(self.base).request("/api/login","POST",{"usuario":"admin","password":"incorrecta"})
         self.assertEqual(status,401); self.assertEqual(body["error"],"Usuario o contraseña incorrectos.")
     def test_03_solo_admite_nombre_de_usuario(self):
-        status,_=Client(self.base).request("/api/login","POST",{"usuario":"emarroquin@esteromar.gt","password":"Admin123!"})
+        status,_=Client(self.base).request("/api/login","POST",{"usuario":"admin@example.com","password":"Admin123!"})
         self.assertEqual(status,401)
     def test_04_login_consulta_rol_y_permisos(self):
         client=Client(self.base); status,body=client.request("/api/login","POST",{"usuario":"admin","password":"Admin123!"})
