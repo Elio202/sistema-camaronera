@@ -30,18 +30,23 @@ async function initSession() {
     $("#currentRole").textContent = usuario.rol;
     $("#avatar").textContent = usuario.nombre[0].toUpperCase();
     const navigation=document.querySelector("aside nav");
-    if (navigation && !navigation.querySelector('a[href="/reportes.html"]')) {
-        const link=document.createElement("a");
-        link.href="/reportes.html";
-        link.textContent="Reportes";
+    if (navigation) {
         const administration=[...navigation.querySelectorAll("small")].find(item => item.textContent.includes("ADMINISTRACIÓN"));
-        navigation.insertBefore(link,administration || null);
+        for (const [href,text] of [["/monitoreo.html","Monitoreo ambiental"],["/reportes.html","Reportes"]]) {
+            if (!navigation.querySelector(`a[href="${href}"]`)) {
+                const link=document.createElement("a");
+                link.href=href;
+                link.textContent=text;
+                navigation.insertBefore(link,administration || null);
+            }
+        }
     }
     const routePermissions = {
         "/piscinas.html": "piscinas.ver",
         "/personal.html": "personal.ver",
         "/inventario.html": "inventario.ver",
         "/alertas.html": "alertas.ver",
+        "/monitoreo.html": "monitoreo.ver",
         "/reportes.html": "reportes.ver",
         "/app.html": "usuarios.ver",
         "/roles.html": "roles.ver"

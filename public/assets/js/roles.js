@@ -5,7 +5,7 @@ deleteRoleButton.className = "secondary danger-button";
 deleteRoleButton.textContent = "Eliminar rol";
 document.querySelector(".permission-editor .dialog-actions").prepend(deleteRoleButton);
 const labels = {
-    usuarios: "Usuarios", roles: "Roles y permisos", piscinas: "Piscinas y ciclos",
+    usuarios: "Usuarios", roles: "Roles y permisos", piscinas: "Piscinas y ciclos", monitoreo: "Monitoreo ambiental",
     personal: "Personal y actividades", inventario: "Inventario", aireacion: "Aireación",
     calidad_agua: "Calidad del agua", reportes: "Reportes",
     ver: "Ver", crear: "Crear", editar: "Editar", cambiar_estado: "Activar o desactivar",

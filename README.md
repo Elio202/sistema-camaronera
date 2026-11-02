@@ -1,7 +1,7 @@
 # Sistema de gestión acuícola Pacific Gold
 
 Aplicación web para centralizar el seguimiento operativo de piscinas, personal,
-actividades, alimento, alertas y reportes.
+actividades, alimento, alertas, monitoreo ambiental y reportes.
 
 ## Componentes
 
@@ -48,3 +48,9 @@ para bases existentes están numerados dentro de `database/migrations/`.
 
 Las credenciales, respaldos y archivos con información real no deben publicarse
 en el repositorio.
+
+## Monitoreo ambiental
+
+La conexión con sensores externos se configura mediante `SENSOR_API_URL` y
+`SENSOR_EXPORT_KEY`. La clave permanece en el servidor y nunca se entrega al
+navegador. En desarrollo puede guardarse en el archivo ignorado `.env.sensor`.

@@ -273,7 +273,8 @@ INSERT IGNORE INTO permisos (modulo, funcion) VALUES
   ('piscinas', 'ver'), ('piscinas', 'crear'), ('piscinas', 'editar'), ('piscinas', 'cambiar_estado'),
   ('personal', 'ver'), ('personal', 'crear'), ('personal', 'editar'), ('personal', 'cambiar_estado'),
   ('personal', 'asignar'), ('personal', 'confirmar'),
-  ('inventario', 'ver'), ('inventario', 'registrar');
+  ('inventario', 'ver'), ('inventario', 'registrar'),
+  ('monitoreo', 'ver');
 
 INSERT IGNORE INTO rol_permisos (rol_id, permiso_id)
 SELECT r.id, p.id FROM roles AS r JOIN permisos AS p
@@ -298,5 +299,10 @@ INSERT IGNORE INTO rol_permisos (rol_id, permiso_id)
 SELECT r.id, p.id FROM roles AS r JOIN permisos AS p
   ON p.modulo IN ('piscinas', 'personal', 'inventario') AND p.funcion = 'ver'
 WHERE r.nombre = 'Gerencia';
+
+INSERT IGNORE INTO rol_permisos (rol_id, permiso_id)
+SELECT r.id, p.id FROM roles AS r JOIN permisos AS p
+  ON p.modulo = 'monitoreo' AND p.funcion = 'ver'
+WHERE r.nombre IN ('Jefe de producción', 'Técnico de calidad', 'Gerencia');
 -- El rol 6 (Encargado de Bodega), los permisos de alertas y todos los del Administrador
 -- los crea init_mariadb() al iniciar el servidor.

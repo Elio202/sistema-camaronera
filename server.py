@@ -1,8 +1,10 @@
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from http.cookies import SimpleCookie
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
-import hashlib, hmac, json, os, re, secrets, sqlite3
+from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, quote, urlparse
+from urllib.request import Request, urlopen
+import hashlib, hmac, json, os, re, secrets, sqlite3, threading, time
 from datetime import datetime, timedelta, timezone
 
 try: import pymysql
@@ -19,11 +21,11 @@ def valid_password(value):
     return len(value) >= 8 and bool(re.search(r"[A-Z]",value)) and bool(re.search(r"[a-z]",value)) and bool(re.search(r"\d",value))
 
 def load_env():
-    path=ROOT/".env"
-    if path.exists():
-        for raw in path.read_text(encoding="utf-8").splitlines():
-            if raw.strip() and not raw.lstrip().startswith("#") and "=" in raw:
-                key,value=raw.split("=",1); os.environ.setdefault(key.strip(),value.strip())
+    for path in (ROOT/".env",ROOT/".env.sensor"):
+        if path.exists():
+            for raw in path.read_text(encoding="utf-8").splitlines():
+                if raw.strip() and not raw.lstrip().startswith("#") and "=" in raw:
+                    key,value=raw.split("=",1); os.environ.setdefault(key.strip(),value.strip())
 
 load_env()
 USE_MARIADB=bool(os.getenv("DB_PASSWORD"))
@@ -32,12 +34,37 @@ SECURE_COOKIE="; Secure" if os.getenv("COOKIE_SECURE","").lower()=="true" else "
 AUTO_INIT_SCHEMA=os.getenv("AUTO_INIT_SCHEMA","").lower()=="true"
 ADMIN_INITIAL_PASSWORD=os.getenv("ADMIN_INITIAL_PASSWORD","")
 ADMIN_INITIAL_EMAIL=os.getenv("ADMIN_INITIAL_EMAIL","admin@localhost.invalid")
+SENSOR_API_URL=os.getenv("SENSOR_API_URL","").strip()
+SENSOR_EXPORT_KEY=os.getenv("SENSOR_EXPORT_KEY","").strip()
 INTEGRITY_ERRORS=(sqlite3.IntegrityError,pymysql.err.IntegrityError) if pymysql else (sqlite3.IntegrityError,)
+SENSOR_CACHE={"time":0.0,"data":None}
+SENSOR_LOCK=threading.Lock()
 
 def now(): return datetime.now(timezone.utc)
 def iso(dt=None): return (dt or now()).astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 BUSINESS_TZ=timezone(timedelta(hours=-6))
 def business_iso(): return now().astimezone(BUSINESS_TZ).strftime("%Y-%m-%d %H:%M:%S")
+
+def sensor_data(force=False):
+    """Consulta el proveedor configurado sin exponer la clave al navegador."""
+    if not SENSOR_API_URL or not SENSOR_EXPORT_KEY:
+        raise RuntimeError("El servicio de monitoreo no está configurado.")
+    with SENSOR_LOCK:
+        if not force and SENSOR_CACHE["data"] and time.monotonic()-SENSOR_CACHE["time"] < 30:
+            return SENSOR_CACHE["data"]
+        separator="&" if "?" in SENSOR_API_URL else "?"
+        url=f"{SENSOR_API_URL}{separator}exportKey={quote(SENSOR_EXPORT_KEY,safe='')}"
+        request=Request(url,headers={"Accept":"application/json","User-Agent":"PacificGold-Monitoreo/1.0"})
+        with urlopen(request,timeout=10) as response:
+            payload=json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload,dict) or not isinstance(payload.get("sensores"),list):
+            raise ValueError("El proveedor devolvió un formato inesperado.")
+        allowed=("id","nombre","temperaturaC","humedadPct","ultimoDatoEn","estado","tempMinC","tempMaxC","enLinea","bateria")
+        clean={"consultadoEn":payload.get("consultadoEn"),"sensores":[]}
+        for item in payload["sensores"]:
+            if isinstance(item,dict): clean["sensores"].append({key:item.get(key) for key in allowed})
+        SENSOR_CACHE.update(time=time.monotonic(),data=clean)
+        return clean
 
 def refresh_activity_statuses(c):
     current=business_iso()
@@ -125,11 +152,11 @@ def init_db():
         roles = [(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes"),(6,"Encargado de Bodega","Control de entradas y salidas de alimento")]
         c.executemany("INSERT OR IGNORE INTO roles(id,nombre,descripcion) VALUES(?,?,?)", roles)
         c.executemany("UPDATE roles SET nombre=?,descripcion=? WHERE id=?", ((name,description,role_id) for role_id,name,description in roles))
-        permissions = [*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar')),*(('alertas',x) for x in ('ver','atender'))]
+        permissions = [*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar')),*(('alertas',x) for x in ('ver','atender')),('monitoreo','ver')]
         for module, function in permissions:
             c.execute("INSERT OR IGNORE INTO permisos(modulo,funcion) VALUES(?,?)", (module,function))
         c.execute("INSERT OR IGNORE INTO rol_permisos SELECT 1,id FROM permisos")
-        role_permissions = {2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('alertas','atender')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar'),('alertas','ver')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver'),('alertas','ver'),('alertas','atender')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver')],6:[('inventario','ver'),('inventario','registrar'),('alertas','ver')]}
+        role_permissions = {2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('alertas','atender'),('monitoreo','ver')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar'),('alertas','ver')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver'),('alertas','ver'),('alertas','atender'),('monitoreo','ver')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('monitoreo','ver')],6:[('inventario','ver'),('inventario','registrar'),('alertas','ver'),('monitoreo','ver')]}
         for role_id, allowed in role_permissions.items():
             for module, function in allowed:
                 c.execute("INSERT OR IGNORE INTO rol_permisos SELECT ?,id FROM permisos WHERE modulo=? AND funcion=?",(role_id,module,function))
@@ -161,8 +188,8 @@ def init_mariadb():
     if missing:
         raise RuntimeError("La base de datos no está preparada. Faltan: "+", ".join(missing)+". Aplique el esquema con una cuenta administradora; no otorgue permisos DDL al usuario de la aplicación.")
     roles=[(1,"Administrador","Configuración y acceso total"),(2,"Jefe de producción","Supervisión integral de la operación"),(3,"Encargado de piscina","Operación de piscinas asignadas"),(4,"Técnico de calidad","Control de parámetros del agua"),(5,"Gerencia","Consulta de indicadores y reportes"),(6,"Encargado de Bodega","Control de entradas y salidas de alimento")]
-    permissions=[*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar')),*(('alertas',x) for x in ('ver','atender'))]
-    role_permissions={2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('alertas','atender')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar'),('alertas','ver')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver'),('alertas','ver'),('alertas','atender')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver')],6:[('inventario','ver'),('inventario','registrar'),('alertas','ver')]}
+    permissions=[*(('usuarios',x) for x in ('ver','crear','editar','cambiar_estado')),*(('roles',x) for x in ('ver','editar')),*(('piscinas',x) for x in ('ver','crear','editar','cambiar_estado')),*(('aireacion',x) for x in ('ver','operar')),*(('inventario',x) for x in ('ver','registrar')),*(('personal',x) for x in ('ver','crear','editar','cambiar_estado','asignar','confirmar')),*(('calidad_agua',x) for x in ('ver','registrar','atender_alertas')),*(('reportes',x) for x in ('ver','exportar')),*(('alertas',x) for x in ('ver','atender')),('monitoreo','ver')]
+    role_permissions={2:[('aireacion','ver'),('aireacion','operar'),('inventario','ver'),('personal','ver'),('personal','asignar'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('alertas','atender'),('monitoreo','ver')],3:[('aireacion','ver'),('inventario','ver'),('inventario','registrar'),('personal','ver'),('personal','confirmar'),('calidad_agua','ver'),('calidad_agua','registrar'),('alertas','ver')],4:[('aireacion','ver'),('calidad_agua','ver'),('calidad_agua','registrar'),('calidad_agua','atender_alertas'),('reportes','ver'),('alertas','ver'),('alertas','atender'),('monitoreo','ver')],5:[('aireacion','ver'),('inventario','ver'),('personal','ver'),('calidad_agua','ver'),('reportes','ver'),('reportes','exportar'),('alertas','ver'),('monitoreo','ver')],6:[('inventario','ver'),('inventario','registrar'),('alertas','ver'),('monitoreo','ver')]}
     with db() as c:
         for role in roles: c.execute("INSERT INTO roles(id,nombre,descripcion) VALUES(?,?,?) ON DUPLICATE KEY UPDATE nombre=VALUES(nombre),descripcion=VALUES(descripcion)",role)
         for permission in permissions: c.execute("INSERT IGNORE INTO permisos(modulo,funcion) VALUES(?,?)",permission)
@@ -249,6 +276,14 @@ class App(SimpleHTTPRequestHandler):
         parsed=urlparse(self.path); path=parsed.path
         if path=="/api/me":
             user=self.require(); return self.json(200,{"usuario":user}) if user else None
+        if path=="/api/monitoreo":
+            if not self.require("monitoreo.ver"): return
+            force=parse_qs(parsed.query).get("actualizar",[""])[0]=="1"
+            try:return self.json(200,{"monitoreo":sensor_data(force)})
+            except RuntimeError as error:return self.json(503,{"error":str(error)})
+            except HTTPError as error:return self.json(502,{"error":f"El proveedor del sensor respondió con estado {error.code}."})
+            except (URLError,TimeoutError):return self.json(502,{"error":"No fue posible conectar con el proveedor del sensor."})
+            except (ValueError,json.JSONDecodeError):return self.json(502,{"error":"El proveedor del sensor devolvió información no válida."})
         if path=="/api/roles":
             if not self.require("usuarios.ver"): return
             with db() as c: return self.json(200,{"roles":[dict(x) for x in c.execute("SELECT id,nombre,descripcion FROM roles WHERE estado=1 ORDER BY nombre")]})
