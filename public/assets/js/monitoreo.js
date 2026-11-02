@@ -37,24 +37,37 @@ function renderSensor(sensor) {
     </article>`;
 }
 
-async function loadMonitor(force = false) {
+async function loadMonitor(force = false, notify = false) {
+    const previousText = refreshButton.textContent;
     refreshButton.disabled = true;
+    refreshButton.textContent = "Actualizando...";
     monitorMessage.textContent = "";
     try {
         const {monitoreo} = await api(`/api/monitoreo${force ? "?actualizar=1" : ""}`);
         monitorGrid.innerHTML = monitoreo.sensores.map(renderSensor).join("") || '<article class="empty-state">No hay sensores disponibles.</article>';
-        $("#monitorUpdated").textContent = `Consulta: ${dateTime(monitoreo.consultadoEn)}`;
+        const queryTime = new Date().toLocaleTimeString("es-GT", {hour: "2-digit", minute: "2-digit", second: "2-digit"});
+        $("#monitorUpdated").textContent = `Consulta realizada a las ${queryTime}`;
+        if (notify) {
+            showMessage(monitorMessage, "Lectura actualizada correctamente.", true);
+            setTimeout(() => {
+                if (monitorMessage.textContent.includes("correctamente")) {
+                    monitorMessage.textContent = "";
+                    monitorMessage.className = "message";
+                }
+            }, 3500);
+        }
     } catch (error) {
         showMessage(monitorMessage, error.message);
     } finally {
         refreshButton.disabled = false;
+        refreshButton.textContent = previousText;
     }
 }
 
-refreshButton.onclick = () => loadMonitor(true);
+refreshButton.onclick = () => loadMonitor(true, true);
 
 (async () => {
     await initSession();
     await loadMonitor();
-    setInterval(() => loadMonitor(true), 60000);
+    setInterval(() => loadMonitor(true, false), 60000);
 })().catch(error => showMessage(monitorMessage, error.message));
