@@ -39,8 +39,10 @@ function renderSensor(sensor) {
 
 async function loadMonitor(force = false, notify = false) {
     const previousText = refreshButton.textContent;
+    const startedAt = Date.now();
     refreshButton.disabled = true;
     refreshButton.textContent = "Actualizando...";
+    refreshButton.classList.add("loading");
     monitorMessage.textContent = "";
     try {
         const {monitoreo} = await api(`/api/monitoreo${force ? "?actualizar=1" : ""}`);
@@ -59,8 +61,11 @@ async function loadMonitor(force = false, notify = false) {
     } catch (error) {
         showMessage(monitorMessage, error.message);
     } finally {
+        const remaining = 1000 - (Date.now() - startedAt);
+        if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
         refreshButton.disabled = false;
         refreshButton.textContent = previousText;
+        refreshButton.classList.remove("loading");
     }
 }
 
