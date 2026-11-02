@@ -1,6 +1,7 @@
 .env
 .env.local
 .env.sensor
+.env.whatsapp
 .venv/
 venv/
 data/

@@ -54,3 +54,8 @@ en el repositorio.
 La conexión con sensores externos se configura mediante `SENSOR_API_URL` y
 `SENSOR_EXPORT_KEY`. La clave permanece en el servidor y nunca se entrega al
 navegador. En desarrollo puede guardarse en el archivo ignorado `.env.sensor`.
+
+Las alertas por WhatsApp pueden enviarse mediante un servidor Evolution API
+externo. Su URL, clave, instancia y destinatario se configuran como secretos;
+el sistema registra el último envío para repetir una condición activa cada dos
+horas sin generar mensajes duplicados.

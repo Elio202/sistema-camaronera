@@ -21,7 +21,7 @@ def valid_password(value):
     return len(value) >= 8 and bool(re.search(r"[A-Z]",value)) and bool(re.search(r"[a-z]",value)) and bool(re.search(r"\d",value))
 
 def load_env():
-    for path in (ROOT/".env",ROOT/".env.sensor"):
+    for path in (ROOT/".env",ROOT/".env.sensor",ROOT/".env.whatsapp"):
         if path.exists():
             for raw in path.read_text(encoding="utf-8").splitlines():
                 if raw.strip() and not raw.lstrip().startswith("#") and "=" in raw:
@@ -36,6 +36,15 @@ ADMIN_INITIAL_PASSWORD=os.getenv("ADMIN_INITIAL_PASSWORD","")
 ADMIN_INITIAL_EMAIL=os.getenv("ADMIN_INITIAL_EMAIL","admin@localhost.invalid")
 SENSOR_API_URL=os.getenv("SENSOR_API_URL","").strip()
 SENSOR_EXPORT_KEY=os.getenv("SENSOR_EXPORT_KEY","").strip()
+WHATSAPP_ALERTS_ENABLED=os.getenv("WHATSAPP_ALERTS_ENABLED","").lower()=="true"
+EVOLUTION_API_URL=os.getenv("EVOLUTION_API_URL","").strip().rstrip("/")
+EVOLUTION_API_KEY=os.getenv("EVOLUTION_API_KEY","").strip()
+EVOLUTION_INSTANCE=os.getenv("EVOLUTION_INSTANCE","").strip()
+EVOLUTION_NUMBER=re.sub(r"\D","",os.getenv("EVOLUTION_NUMBER",""))
+try:SENSOR_CHECK_SECONDS=max(60,int(os.getenv("SENSOR_CHECK_SECONDS","300")))
+except ValueError:SENSOR_CHECK_SECONDS=300
+try:SENSOR_REPEAT_HOURS=max(1,int(os.getenv("SENSOR_REPEAT_HOURS","2")))
+except ValueError:SENSOR_REPEAT_HOURS=2
 INTEGRITY_ERRORS=(sqlite3.IntegrityError,pymysql.err.IntegrityError) if pymysql else (sqlite3.IntegrityError,)
 SENSOR_CACHE={"time":0.0,"data":None}
 SENSOR_LOCK=threading.Lock()
@@ -65,6 +74,79 @@ def sensor_data(force=False):
             if isinstance(item,dict): clean["sensores"].append({key:item.get(key) for key in allowed})
         SENSOR_CACHE.update(time=time.monotonic(),data=clean)
         return clean
+
+def sensor_alert_table_ready():
+    try:
+        with db() as c:c.execute("SELECT 1 FROM avisos_sensor LIMIT 1")
+        return True
+    except Exception:return False
+
+def evolution_ready():
+    return bool(EVOLUTION_API_URL and EVOLUTION_API_KEY and EVOLUTION_INSTANCE and EVOLUTION_NUMBER)
+
+def send_whatsapp(message):
+    """Envía un texto mediante Evolution API sin registrar secretos ni destinatarios."""
+    if not evolution_ready(): raise RuntimeError("Evolution API no está configurada.")
+    if urlparse(EVOLUTION_API_URL).scheme not in ("http","https"):
+        raise RuntimeError("La dirección de Evolution API no es válida.")
+    endpoint=f"{EVOLUTION_API_URL}/message/sendText/{quote(EVOLUTION_INSTANCE,safe='')}"
+    body=json.dumps({"number":EVOLUTION_NUMBER,"text":message},ensure_ascii=False).encode("utf-8")
+    request=Request(endpoint,data=body,method="POST",headers={"Accept":"application/json","Content-Type":"application/json","apikey":EVOLUTION_API_KEY,"User-Agent":"PacificGold-Alertas/1.0"})
+    with urlopen(request,timeout=20) as response:
+        payload=response.read().decode("utf-8")
+        return json.loads(payload) if payload else {"ok":True}
+
+def sensor_conditions(sensor):
+    conditions=[]
+    name=str(sensor.get("nombre") or "Sensor")
+    try:
+        temperature=float(sensor.get("temperaturaC")); minimum=float(sensor.get("tempMinC")); maximum=float(sensor.get("tempMaxC"))
+        active=temperature < minimum or temperature > maximum
+        alert=f"⚠️ ALERTA DE TEMPERATURA\n\nSensor: {name}\nTemperatura actual: {temperature:g} °C\nRango permitido: {minimum:g} °C a {maximum:g} °C\nHora: {now().astimezone(BUSINESS_TZ).strftime('%d/%m/%Y %I:%M %p')}\n\nLa condición requiere revisión."
+        recovery=f"✅ TEMPERATURA NORMALIZADA\n\nEl sensor {name} volvió al rango permitido.\nTemperatura actual: {temperature:g} °C."
+        conditions.append({"type":"Temperatura","active":active,"value":f"{temperature:g} °C","alert":alert,"recovery":recovery})
+    except (TypeError,ValueError): pass
+    online=sensor.get("enLinea") is True or str(sensor.get("enLinea")).lower() in ("true","1")
+    conditions.append({"type":"Conexion","active":not online,"value":"Desconectado" if not online else "En línea","alert":f"⚠️ SENSOR SIN CONEXIÓN\n\nEl sensor {name} dejó de reportar información. Revise la conexión y alimentación del equipo.","recovery":f"✅ SENSOR EN LÍNEA\n\nEl sensor {name} restableció la conexión."})
+    battery=str(sensor.get("bateria") or "").lower()
+    conditions.append({"type":"Bateria","active":battery in ("low","baja"),"value":battery or "Sin dato","alert":f"⚠️ BATERÍA BAJA\n\nEl sensor {name} reporta batería baja.","recovery":f"✅ BATERÍA NORMAL\n\nEl sensor {name} ya no reporta batería baja."})
+    return conditions
+
+def save_sensor_notice(sensor_id,condition,active,sent_at):
+    with db() as c:
+        if USE_MARIADB:
+            c.execute("""INSERT INTO avisos_sensor(sensor,tipo,activo,valor,ult_env) VALUES(?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE activo=VALUES(activo),valor=VALUES(valor),ult_env=VALUES(ult_env)""",(sensor_id,condition["type"],active,condition["value"],sent_at))
+        else:
+            c.execute("""INSERT INTO avisos_sensor(sensor,tipo,activo,valor,ult_env) VALUES(?,?,?,?,?)
+                ON CONFLICT(sensor,tipo) DO UPDATE SET activo=excluded.activo,valor=excluded.valor,ult_env=excluded.ult_env""",(sensor_id,condition["type"],active,condition["value"],sent_at))
+
+def sensor_notice_action(condition,row,repeat_before):
+    if condition["active"] and (not row or not row["activo"] or not row["ult_env"] or str(row["ult_env"])<=repeat_before): return "alert"
+    if not condition["active"] and row and row["activo"]: return "recovery"
+    return None
+
+def process_sensor_alerts():
+    if not WHATSAPP_ALERTS_ENABLED or not evolution_ready(): return 0
+    if not sensor_alert_table_ready(): raise RuntimeError("Falta aplicar la migración 14 de avisos del sensor.")
+    sent=0; current=now(); repeat_before=iso(current-timedelta(hours=SENSOR_REPEAT_HOURS))
+    for sensor in sensor_data(True).get("sensores",[]):
+        sensor_id=str(sensor.get("id") or sensor.get("nombre") or "sensor")[:100]
+        for condition in sensor_conditions(sensor):
+            with db() as c: row=c.execute("SELECT activo,ult_env FROM avisos_sensor WHERE sensor=? AND tipo=?",(sensor_id,condition["type"])).fetchone()
+            action=sensor_notice_action(condition,row,repeat_before)
+            if action:
+                send_whatsapp(condition["alert"] if action=="alert" else condition["recovery"])
+                save_sensor_notice(sensor_id,condition,condition["active"],iso(current)); sent+=1
+    return sent
+
+def whatsapp_alert_worker():
+    while True:
+        try:
+            sent=process_sensor_alerts()
+            if sent: print(f"Alertas WhatsApp enviadas: {sent}")
+        except Exception as error: print(f"Monitoreo WhatsApp: {error}")
+        time.sleep(SENSOR_CHECK_SECONDS)
 
 def refresh_activity_statuses(c):
     current=business_iso()
@@ -838,4 +920,7 @@ class App(SimpleHTTPRequestHandler):
 if __name__=="__main__":
     # En Railway se define PORT y HOST=0.0.0.0; en local se conserva 127.0.0.1:8000.
     host=os.getenv("HOST","127.0.0.1"); port=int(os.getenv("PORT","8000"))
-    init_db(); print(f"Sistema disponible en http://{host}:{port}"); ThreadingHTTPServer((host,port),App).serve_forever()
+    init_db()
+    if WHATSAPP_ALERTS_ENABLED:
+        threading.Thread(target=whatsapp_alert_worker,daemon=True,name="whatsapp-alerts").start()
+    print(f"Sistema disponible en http://{host}:{port}"); ThreadingHTTPServer((host,port),App).serve_forever()
