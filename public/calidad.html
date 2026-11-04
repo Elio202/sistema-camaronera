@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Calidad del agua | Pacific Gold</title>
+    <link rel="stylesheet" href="assets/css/styles.css?v=calidad1">
+</head>
+<body class="app-page">
+<aside><div class="brand"><span class="brand-mark">OP</span><span>Pacific Gold</span></div><nav><small>OPERACIÓN</small><a href="/dashboard.html">Panel principal</a><a href="/piscinas.html">Piscinas</a><a href="/personal.html">Personal y actividades</a><a href="/inventario.html">Inventario</a><a href="/alertas.html">Alertas</a><a class="active" href="/calidad.html">Calidad del agua</a><small>ADMINISTRACIÓN</small><a href="/app.html">Usuarios</a><a href="/roles.html">Roles y permisos</a></nav><div class="sidebar-foot">Sistema acuícola<br><span>Versión prototipo 2.0</span></div></aside>
+<main class="content">
+    <header><div><span class="eyebrow">Control de parámetros</span><h1>Calidad del agua</h1></div><div class="userbox"><div class="avatar" id="avatar">A</div><div><b id="currentName">...</b><small id="currentRole">...</small></div><button id="logout">Salir</button></div></header>
+    <section class="quality-ranges" id="rangeCards"></section>
+    <section class="table-card">
+        <div class="toolbar"><div><h2>Historial de mediciones</h2><p class="muted">Los valores se comparan automáticamente con los rangos configurados.</p></div><button class="primary compact" id="newMeasurement">+ Nueva medición</button></div>
+        <div class="search cycle-filters"><input id="qualitySearch" placeholder="Buscar por piscina, responsable o estado..."><select id="qualityState"><option value="">Todos los estados</option><option value="Normal">Normal</option><option value="Fuera de rango">Fuera de rango</option></select></div>
+        <div class="table-scroll"><table><thead><tr><th>Fecha</th><th>Piscina</th><th>Responsable</th><th>Oxígeno</th><th>Temperatura</th><th>pH</th><th>Salinidad</th><th>Estado</th><th>Notas</th></tr></thead><tbody id="qualityRows"></tbody></table></div>
+    </section>
+</main>
+<dialog id="qualityDialog"><form method="dialog" id="qualityForm"><div class="dialog-head"><h2>Registrar medición</h2><button type="button" class="close">×</button></div><div class="form-grid"><label>Piscina<select id="qualityPool" required></select></label><label>Responsable<select id="qualityStaff" required></select></label><label>Fecha y hora<input id="qualityDate" type="datetime-local" required></label><label>Oxígeno disuelto (mg/L)<input id="qualityOxygen" type="number" min="0" step="0.01" required></label><label>Temperatura (°C)<input id="qualityTemp" type="number" min="0" step="0.01" required></label><label>pH<input id="qualityPh" type="number" min="0" max="14" step="0.01" required></label><label>Salinidad (ppt)<input id="qualitySalinity" type="number" min="0" step="0.01" required></label><label class="full">Observaciones<textarea id="qualityNotes" maxlength="300"></textarea></label></div><div class="message" id="qualityMessage"></div><div class="dialog-actions"><button type="button" class="secondary cancel">Cancelar</button><button class="primary" type="submit">Registrar</button></div></form></dialog>
+<script src="assets/js/module-common.js?v=6"></script><script src="assets/js/calidad.js?v=1"></script>
+</body></html>

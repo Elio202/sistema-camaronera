@@ -421,6 +421,40 @@ class App(SimpleHTTPRequestHandler):
                     LIMIT 500""").fetchall()
                 totals={state:c.execute("SELECT COUNT(*) total FROM alertas WHERE estado=?",(state,)).fetchone()["total"] for state in ("Pendiente","Atendida","Resuelta")}
                 return self.json(200,{"alertas":[dict(row) for row in rows],"totales":totals})
+        if path=="/api/calidad":
+            if not self.require("calidad_agua.ver"): return
+            try:
+                with db() as c:
+                    ranges=[dict(row) for row in c.execute(
+                        "SELECT id,parametro,unidad,minimo,maximo,activo FROM rangos_calidad_agua ORDER BY id"
+                    ).fetchall()]
+                    rows=[dict(row) for row in c.execute("""SELECT q.id,q.fecha,q.oxigeno,q.temp,q.ph,q.salinidad,q.notas,
+                        COALESCE(v.codigo_productivo,p.codigo) piscina,c.nombre responsable,u.nombre registrado_por
+                        FROM mediciones_calidad_agua q
+                        JOIN piscinas p ON p.id=q.piscina_id
+                        LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
+                        JOIN colaboradores c ON c.id=q.resp_id
+                        JOIN usuarios u ON u.id=q.usuario_id
+                        ORDER BY q.fecha DESC,q.id DESC LIMIT 300""").fetchall()]
+                    pools=[dict(row) for row in c.execute("""SELECT p.id,COALESCE(v.codigo_productivo,p.codigo) codigo
+                        FROM piscinas p LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
+                        WHERE p.estado=1 ORDER BY codigo""").fetchall()]
+                    staff=[dict(row) for row in c.execute(
+                        "SELECT id,codigo_empleado,nombre,puesto FROM colaboradores WHERE estado=1 ORDER BY nombre"
+                    ).fetchall()]
+            except Exception:
+                return self.json(503,{"error":"El módulo de calidad del agua todavía no está instalado en la base de datos."})
+            limits={str(row["parametro"]).lower():row for row in ranges if row["activo"]}
+            fields=(("oxigeno","oxígeno"),("temp","temperatura"),("ph","ph"),("salinidad","salinidad"))
+            for row in rows:
+                outside=[]
+                for field,key in fields:
+                    limit=next((value for name,value in limits.items() if key in name),None)
+                    if limit and not (float(limit["minimo"]) <= float(row[field]) <= float(limit["maximo"])):
+                        outside.append(limit["parametro"])
+                row["estado"]="Fuera de rango" if outside else "Normal"
+                row["fuera_rango"]=outside
+            return self.json(200,{"mediciones":rows,"rangos":ranges,"piscinas":pools,"responsables":staff})
         if path=="/api/reportes":
             if not self.require("reportes.ver"): return
             dates=report_dates(parsed)
@@ -453,6 +487,11 @@ class App(SimpleHTTPRequestHandler):
                     "columnas":[("fecha","Fecha"),("tipo","Movimiento"),("producto","Producto"),("cantidad","Cantidad"),("unidad","Unidad"),("lote","Lote"),("piscina","Piscina"),("responsable","Responsable")],
                     "sql":"SELECT mi.creado_en fecha,mi.tipo,pa.nombre producto,mi.cantidad,pa.unidad,mi.lote,COALESCE(v.codigo_productivo,p.codigo,'—') piscina,COALESCE(c.nombre,'—') responsable FROM movimientos_inventario mi JOIN productos_alimento pa ON pa.id=mi.producto_id LEFT JOIN piscinas p ON p.id=mi.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id LEFT JOIN colaboradores c ON c.id=mi.responsable_id",
                     "fecha":"DATE(mi.creado_en)"},
+                "calidad":{
+                    "titulo":"Mediciones de calidad del agua",
+                    "columnas":[("fecha","Fecha"),("piscina","Piscina"),("responsable","Responsable"),("oxigeno","Oxígeno mg/L"),("temp","Temperatura °C"),("ph","pH"),("salinidad","Salinidad ppt"),("notas","Observaciones")],
+                    "sql":"SELECT q.fecha,COALESCE(v.codigo_productivo,p.codigo) piscina,c.nombre responsable,q.oxigeno,q.temp,q.ph,q.salinidad,COALESCE(q.notas,'—') notas FROM mediciones_calidad_agua q JOIN piscinas p ON p.id=q.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id JOIN colaboradores c ON c.id=q.resp_id",
+                    "fecha":"DATE(q.fecha)"},
                 "alertas":{
                     "titulo":"Historial de alertas",
                     "columnas":[("fecha","Fecha"),("modulo","Módulo"),("titulo","Alerta"),("nivel","Nivel"),("estado","Estado"),("atendida_por","Atendida por")],
@@ -684,6 +723,29 @@ class App(SimpleHTTPRequestHandler):
                 c.execute("""INSERT INTO actividades(
                     colaborador_id,piscina_id,descripcion,fecha_inicio,fecha_fin,fecha_limite,usuario_asigna
                     ) VALUES(?,?,?,?,?,?,?)""",(colaborador,piscina,descripcion,inicio,fin,fin,user["id"]))
+            return self.json(201,{"ok":True})
+        if path=="/api/calidad":
+            user=self.require("calidad_agua.registrar")
+            if not user:return
+            try:
+                piscina=int(data.get("piscina_id")); responsable=int(data.get("resp_id"))
+                oxigeno=float(data.get("oxigeno")); temp=float(data.get("temp"))
+                ph=float(data.get("ph")); salinidad=float(data.get("salinidad"))
+                fecha=datetime.fromisoformat(str(data.get("fecha","")).replace("T"," "))
+            except (TypeError,ValueError):
+                return self.json(400,{"error":"Complete todos los datos de la medición con valores válidos."})
+            if oxigeno<0 or temp<0 or not 0<=ph<=14 or salinidad<0:
+                return self.json(400,{"error":"Revise los valores: no pueden ser negativos y el pH debe estar entre 0 y 14."})
+            notas=clean_text(data,"notas",0,300) or None
+            with db() as c:
+                if not c.execute("SELECT 1 FROM piscinas WHERE id=? AND estado=1",(piscina,)).fetchone():
+                    return self.json(400,{"error":"La piscina seleccionada no está activa."})
+                if not c.execute("SELECT 1 FROM colaboradores WHERE id=? AND estado=1",(responsable,)).fetchone():
+                    return self.json(400,{"error":"El responsable seleccionado no está activo."})
+                c.execute("""INSERT INTO mediciones_calidad_agua(
+                    piscina_id,resp_id,usuario_id,fecha,oxigeno,temp,ph,salinidad,notas
+                    ) VALUES(?,?,?,?,?,?,?,?,?)""",
+                    (piscina,responsable,user["id"],fecha.strftime("%Y-%m-%d %H:%M:%S"),oxigeno,temp,ph,salinidad,notas))
             return self.json(201,{"ok":True})
         if path=="/api/productos":
             if not self.require("inventario.registrar"): return
