@@ -32,7 +32,7 @@ async function initSession() {
     const navigation=document.querySelector("aside nav");
     if (navigation) {
         const administration=[...navigation.querySelectorAll("small")].find(item => item.textContent.includes("ADMINISTRACIÓN"));
-        for (const [href,text] of [["/calidad.html","Calidad del agua"],["/monitoreo.html","Monitoreo ambiental"],["/reportes.html","Reportes"]]) {
+        for (const [href,text] of [["/aireacion.html","Aireación"],["/calidad.html","Calidad del agua"],["/monitoreo.html","Monitoreo ambiental"],["/reportes.html","Reportes"]]) {
             if (!navigation.querySelector(`a[href="${href}"]`)) {
                 const link=document.createElement("a");
                 link.href=href;
@@ -46,6 +46,7 @@ async function initSession() {
         "/personal.html": "personal.ver",
         "/inventario.html": "inventario.ver",
         "/alertas.html": "alertas.ver",
+        "/aireacion.html": "aireacion.ver",
         "/calidad.html": "calidad_agua.ver",
         "/monitoreo.html": "monitoreo.ver",
         "/reportes.html": "reportes.ver",

@@ -1406,3 +1406,15 @@ dialog form {
 .quality-detail { display:block;margin-top:5px;color:#b53e3e }
 @media(max-width:1000px) { .quality-ranges { grid-template-columns:repeat(2,1fr) } }
 @media(max-width:600px) { .quality-ranges { grid-template-columns:1fr } }
+
+/* Aireación */
+.aerator-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px }
+.aerator-card { padding:24px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 36px rgba(5,35,75,.06) }
+.aerator-card.aerator-alert { border-color:#e7a9a9;background:#fffafa }
+.aerator-reading { margin:22px 0 10px;padding:20px;border-radius:15px;background:#f5f9fe }
+.aerator-reading span { display:block;color:var(--muted) }
+.aerator-reading strong { display:inline-block;margin:5px 5px 0 0;color:var(--navy);font-size:40px }
+.aerator-condition { color:var(--muted);font-size:13px }
+.aerator-actions { display:flex;flex-wrap:wrap;gap:9px;margin-top:18px }
+.aerator-actions button { flex:1 }
+@media(max-width:900px) { .aerator-grid { grid-template-columns:1fr } }

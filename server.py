@@ -421,6 +421,31 @@ class App(SimpleHTTPRequestHandler):
                     LIMIT 500""").fetchall()
                 totals={state:c.execute("SELECT COUNT(*) total FROM alertas WHERE estado=?",(state,)).fetchone()["total"] for state in ("Pendiente","Atendida","Resuelta")}
                 return self.json(200,{"alertas":[dict(row) for row in rows],"totales":totals})
+        if path=="/api/aireacion":
+            if not self.require("aireacion.ver"): return
+            try:
+                with db() as c:
+                    equipment=[dict(row) for row in c.execute("""SELECT a.id,a.codigo,a.modo,a.encendido,a.activo,a.oxigeno,
+                        a.umbral_enc,a.umbral_apa,a.actualizado,COALESCE(v.codigo_productivo,p.codigo) piscina
+                        FROM aireadores a JOIN piscinas p ON p.id=a.piscina_id
+                        LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
+                        ORDER BY a.activo DESC,a.codigo""").fetchall()]
+                    events=[dict(row) for row in c.execute("""SELECT e.id,e.accion,e.origen,e.oxigeno,e.detalle,e.creado,
+                        a.codigo aireador,COALESCE(v.codigo_productivo,p.codigo) piscina,u.nombre usuario
+                        FROM eventos_aireacion e JOIN aireadores a ON a.id=e.aireador_id
+                        JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
+                        JOIN usuarios u ON u.id=e.usuario_id ORDER BY e.id DESC LIMIT 200""").fetchall()]
+                    pools=[dict(row) for row in c.execute("""SELECT p.id,COALESCE(v.codigo_productivo,p.codigo) codigo
+                        FROM piscinas p LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
+                        WHERE p.estado=1 ORDER BY codigo""").fetchall()]
+            except Exception:
+                return self.json(503,{"error":"El módulo de aireación todavía no está instalado en la base de datos."})
+            for item in equipment:
+                if item["oxigeno"] is None:item["condicion"]="Sin lectura"
+                elif float(item["oxigeno"]) < float(item["umbral_enc"]):item["condicion"]="Oxígeno bajo"
+                elif float(item["oxigeno"]) >= float(item["umbral_apa"]):item["condicion"]="Normal"
+                else:item["condicion"]="En recuperación"
+            return self.json(200,{"aireadores":equipment,"eventos":events,"piscinas":pools})
         if path=="/api/calidad":
             if not self.require("calidad_agua.ver"): return
             try:
@@ -492,6 +517,11 @@ class App(SimpleHTTPRequestHandler):
                     "columnas":[("fecha","Fecha"),("piscina","Piscina"),("responsable","Responsable"),("oxigeno","Oxígeno mg/L"),("temp","Temperatura °C"),("ph","pH"),("salinidad","Salinidad ppt"),("notas","Observaciones")],
                     "sql":"SELECT q.fecha,COALESCE(v.codigo_productivo,p.codigo) piscina,c.nombre responsable,q.oxigeno,q.temp,q.ph,q.salinidad,COALESCE(q.notas,'—') notas FROM mediciones_calidad_agua q JOIN piscinas p ON p.id=q.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id JOIN colaboradores c ON c.id=q.resp_id",
                     "fecha":"DATE(q.fecha)"},
+                "aireacion":{
+                    "titulo":"Historial de control de aireación",
+                    "columnas":[("fecha","Fecha"),("aireador","Aireador"),("piscina","Piscina"),("accion","Acción"),("origen","Origen"),("oxigeno","Oxígeno mg/L"),("usuario","Usuario"),("detalle","Detalle")],
+                    "sql":"SELECT e.creado fecha,a.codigo aireador,COALESCE(v.codigo_productivo,p.codigo) piscina,e.accion,e.origen,e.oxigeno,u.nombre usuario,COALESCE(e.detalle,'—') detalle FROM eventos_aireacion e JOIN aireadores a ON a.id=e.aireador_id JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id JOIN usuarios u ON u.id=e.usuario_id",
+                    "fecha":"DATE(e.creado)"},
                 "alertas":{
                     "titulo":"Historial de alertas",
                     "columnas":[("fecha","Fecha"),("modulo","Módulo"),("titulo","Alerta"),("nivel","Nivel"),("estado","Estado"),("atendida_por","Atendida por")],
@@ -724,6 +754,55 @@ class App(SimpleHTTPRequestHandler):
                     colaborador_id,piscina_id,descripcion,fecha_inicio,fecha_fin,fecha_limite,usuario_asigna
                     ) VALUES(?,?,?,?,?,?,?)""",(colaborador,piscina,descripcion,inicio,fin,fin,user["id"]))
             return self.json(201,{"ok":True})
+        if path=="/api/aireacion":
+            user=self.require("aireacion.operar")
+            if not user:return
+            codigo=clean_text(data,"codigo",2,30)
+            try:
+                piscina=int(data.get("piscina_id")); enc=float(data.get("umbral_enc")); apa=float(data.get("umbral_apa"))
+            except (TypeError,ValueError):
+                return self.json(400,{"error":"Complete la piscina, el código y los umbrales."})
+            if not codigo or enc<0 or apa<=enc:
+                return self.json(400,{"error":"El umbral de apagado debe ser mayor que el de encendido."})
+            try:
+                with db() as c:
+                    if not c.execute("SELECT 1 FROM piscinas WHERE id=? AND estado=1",(piscina,)).fetchone():
+                        return self.json(400,{"error":"La piscina seleccionada no está activa."})
+                    c.execute("INSERT INTO aireadores(piscina_id,codigo,umbral_enc,umbral_apa) VALUES(?,?,?,?)",(piscina,codigo.upper(),enc,apa))
+                return self.json(201,{"ok":True})
+            except INTEGRITY_ERRORS:return self.json(409,{"error":"Ya existe un aireador con ese código."})
+        if path in ("/api/aireacion/lectura","/api/aireacion/operar","/api/aireacion/modo"):
+            user=self.require("aireacion.operar")
+            if not user:return
+            try:air_id=int(data.get("aireador_id"))
+            except (TypeError,ValueError):return self.json(400,{"error":"Seleccione un aireador válido."})
+            with db() as c:
+                item=c.execute("SELECT * FROM aireadores WHERE id=? AND activo=1 FOR UPDATE",(air_id,)).fetchone()
+                if not item:return self.json(404,{"error":"El aireador no existe o está inactivo."})
+                if path.endswith("/lectura"):
+                    oxygen=nonnegative_number(data.get("oxigeno"))
+                    if oxygen is None:return self.json(400,{"error":"Ingrese una lectura de oxígeno válida."})
+                    previous=bool(item["encendido"]); current=previous; detail="Lectura registrada."
+                    if item["modo"]=="Automático":
+                        if oxygen<float(item["umbral_enc"]):current=True
+                        elif oxygen>=float(item["umbral_apa"]):current=False
+                        detail="Control automático aplicado según los umbrales configurados."
+                    c.execute("UPDATE aireadores SET oxigeno=?,encendido=? WHERE id=?",(oxygen,current,air_id))
+                    c.execute("INSERT INTO eventos_aireacion(aireador_id,usuario_id,accion,origen,oxigeno,detalle) VALUES(?,?,?,?,?,?)",(air_id,user["id"],"Lectura",item["modo"],oxygen,detail))
+                    if current!=previous:
+                        action="Encendido" if current else "Apagado"
+                        c.execute("INSERT INTO eventos_aireacion(aireador_id,usuario_id,accion,origen,oxigeno,detalle) VALUES(?,?,?,?,?,?)",(air_id,user["id"],action,"Automático",oxygen,"Cambio automático por nivel de oxígeno."))
+                elif path.endswith("/operar"):
+                    if item["modo"]!="Manual":return self.json(409,{"error":"Cambie el aireador a modo Manual antes de operarlo directamente."})
+                    current=not bool(item["encendido"])
+                    c.execute("UPDATE aireadores SET encendido=? WHERE id=?",(current,air_id))
+                    c.execute("INSERT INTO eventos_aireacion(aireador_id,usuario_id,accion,origen,oxigeno,detalle) VALUES(?,?,?,?,?,?)",(air_id,user["id"],"Encendido" if current else "Apagado","Manual",item["oxigeno"],"Acción ejecutada por el usuario."))
+                else:
+                    mode=data.get("modo")
+                    if mode not in ("Manual","Automático"):return self.json(400,{"error":"Seleccione un modo válido."})
+                    c.execute("UPDATE aireadores SET modo=? WHERE id=?",(mode,air_id))
+                    c.execute("INSERT INTO eventos_aireacion(aireador_id,usuario_id,accion,origen,oxigeno,detalle) VALUES(?,?,?,?,?,?)",(air_id,user["id"],"Modo","Manual",item["oxigeno"],f"Modo cambiado a {mode}."))
+            return self.json(200,{"ok":True})
         if path=="/api/calidad":
             user=self.require("calidad_agua.registrar")
             if not user:return

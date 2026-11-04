@@ -4,7 +4,7 @@ let users = [],
 const $ = s => document.querySelector(s),
     dialog = $('#userDialog'),
     form = $('#userForm');
-document.querySelector('aside nav').innerHTML = '<small>OPERACIÓN</small><a href="/dashboard.html">Panel principal</a><a href="/piscinas.html">Piscinas</a><a href="/personal.html">Personal y actividades</a><a href="/inventario.html">Inventario</a><a href="/alertas.html">Alertas</a><a href="/calidad.html">Calidad del agua</a><a href="/monitoreo.html">Monitoreo ambiental</a><a href="/reportes.html">Reportes</a><small>ADMINISTRACIÓN</small><a class="active" href="/app.html">Usuarios</a><a href="/roles.html">Roles y permisos</a>';
+document.querySelector('aside nav').innerHTML = '<small>OPERACIÓN</small><a href="/dashboard.html">Panel principal</a><a href="/piscinas.html">Piscinas</a><a href="/personal.html">Personal y actividades</a><a href="/inventario.html">Inventario</a><a href="/alertas.html">Alertas</a><a href="/aireacion.html">Aireación</a><a href="/calidad.html">Calidad del agua</a><a href="/monitoreo.html">Monitoreo ambiental</a><a href="/reportes.html">Reportes</a><small>ADMINISTRACIÓN</small><a class="active" href="/app.html">Usuarios</a><a href="/roles.html">Roles y permisos</a>';
 async function api(path, options = {}) {
     const r = await fetch(path, {
         headers: {
