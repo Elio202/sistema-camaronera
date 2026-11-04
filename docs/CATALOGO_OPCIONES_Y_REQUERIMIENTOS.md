@@ -2,8 +2,8 @@
 
 ## Sistema de gestión acuícola Pacific Gold
 
-**Versión:** 2.0 resumida  
-**Fecha:** 5 de septiembre de 2026
+**Versión:** 3.0 final
+**Fecha:** 4 de noviembre de 2026
 
 ## 1. Objetivo
 
@@ -16,6 +16,7 @@ incluyendo aireación, alimento, personal, calidad del agua, seguridad y reporte
 - Jefe de producción.
 - Encargado de piscina.
 - Técnico de calidad.
+- Encargado de bodega.
 - Gerencia.
 
 Cada usuario tendrá acceso únicamente a las opciones autorizadas para su rol.
@@ -24,16 +25,17 @@ Cada usuario tendrá acceso únicamente a las opciones autorizadas para su rol.
 
 | Módulo | Opciones principales | Estado actual |
 |---|---|---|
-| Acceso | Iniciar sesión, cerrar sesión y recuperar contraseña | Login funcional; recuperación pendiente |
-| Panel principal | Ver indicadores, alertas y accesos rápidos | En validación |
-| Usuarios y permisos | Crear, editar, activar usuarios y asignar roles/permisos | Usuarios funcional; matriz de permisos parcial |
-| Piscinas y ciclos | Administrar fincas, módulos, piscinas y ciclos productivos | Datos cargados; gestión de ciclos pendiente |
-| Aireación | Leer oxígeno, controlar aireadores, consultar historial y alertas | Pendiente |
-| Inventario | Administrar alimentos, entradas, salidas, existencias y mínimos | En validación |
-| Personal | Administrar colaboradores y asignar actividades | En validación |
-| Calidad del agua | Registrar oxígeno, temperatura, pH y salinidad; validar rangos | Pendiente |
-| Alertas | Consultar y atender alertas de operación | Pendiente |
-| Reportes | Consultar, filtrar y exportar información en PDF | Pendiente |
+| Acceso | Iniciar y cerrar sesión | Implementado |
+| Panel principal | Ver indicadores, alertas y monitoreo ambiental | Implementado |
+| Usuarios y permisos | Crear, editar, activar usuarios y asignar roles/permisos | Implementado |
+| Piscinas y ciclos | Administrar fincas, módulos, piscinas y ciclos productivos | Implementado |
+| Aireación | Registrar lecturas, controlar aireadores y consultar historial | Prototipo funcional; integración física futura |
+| Inventario | Administrar alimentos, entradas, salidas, existencias y mínimos | Implementado |
+| Personal | Administrar colaboradores y asignar actividades | Implementado |
+| Calidad del agua | Registrar oxígeno, temperatura, pH y salinidad; validar rangos | Implementado |
+| Alertas | Consultar y atender alertas de operación | Implementado |
+| Monitoreo ambiental | Consultar temperatura y humedad del sensor externo | Implementado |
+| Reportes | Consultar dashboards, filtrar y exportar información | Implementado |
 
 ### Opciones destacadas
 
@@ -53,20 +55,19 @@ Cada usuario tendrá acceso únicamente a las opciones autorizadas para su rol.
 | Código | Requerimiento | Estado |
 |---|---|---|
 | RF-01 | El sistema deberá permitir iniciar y cerrar sesión mediante credenciales válidas. | Implementado |
-| RF-02 | El sistema deberá habilitar módulos y acciones según el rol y los permisos del usuario. | Implementado parcialmente |
-| RF-03 | El administrador deberá gestionar usuarios, roles y permisos. | Usuarios implementado; permisos parcial |
-| RF-04 | El sistema deberá mostrar en el panel los principales indicadores y alertas. | En validación |
-| RF-05 | El usuario autorizado deberá administrar fincas, módulos, piscinas y sus ciclos productivos. | Implementado parcialmente |
+| RF-02 | El sistema deberá habilitar módulos y acciones según el rol y los permisos del usuario. | Implementado |
+| RF-03 | El administrador deberá gestionar usuarios, roles y permisos. | Implementado |
+| RF-04 | El sistema deberá mostrar en el panel los principales indicadores y alertas. | Implementado |
+| RF-05 | El usuario autorizado deberá administrar fincas, módulos, piscinas y sus ciclos productivos. | Implementado |
 | RF-06 | El sistema deberá mostrar el código de piscina y ciclo concatenado, conservando ambos datos separados. | Implementado |
-| RF-07 | El sistema deberá recibir el oxígeno del sensor y controlar automáticamente los aireadores según límites configurados. | Pendiente |
-| RF-08 | El usuario autorizado deberá registrar productos, entradas y salidas de alimento, actualizando automáticamente las existencias. | En validación |
-| RF-09 | El sistema deberá impedir salidas superiores al inventario disponible y advertir cuando se alcance el mínimo. | En validación |
-| RF-10 | El usuario autorizado deberá administrar colaboradores y asignarles actividades relacionadas con piscinas. | En validación |
-| RF-11 | El sistema deberá clasificar las actividades como pendientes, realizadas o vencidas y generar alertas por incumplimiento. | En validación |
-| RF-12 | El sistema deberá registrar y validar oxígeno, temperatura, pH y salinidad según rangos configurados. | Pendiente |
-| RF-13 | El sistema deberá centralizar y permitir atender alertas de aireación, calidad, personal e inventario. | Pendiente |
-| RF-14 | El sistema deberá generar reportes operativos y administrativos con filtros y exportación en PDF. | Pendiente |
-| RF-15 | El sistema deberá permitir recuperar la contraseña mediante un enlace seguro enviado por correo. | Pendiente |
+| RF-07 | El sistema deberá recibir el oxígeno y controlar automáticamente los aireadores según límites configurados. | Prototipo funcional con lectura registrada; sensor físico pendiente |
+| RF-08 | El usuario autorizado deberá registrar productos, entradas y salidas de alimento, actualizando automáticamente las existencias. | Implementado |
+| RF-09 | El sistema deberá impedir salidas superiores al inventario disponible y advertir cuando se alcance el mínimo. | Implementado |
+| RF-10 | El usuario autorizado deberá administrar colaboradores y asignarles actividades relacionadas con piscinas o trabajos varios. | Implementado |
+| RF-11 | El sistema deberá clasificar las actividades como pendientes, realizadas o vencidas y generar alertas por incumplimiento. | Implementado |
+| RF-12 | El sistema deberá registrar y validar oxígeno, temperatura, pH y salinidad según rangos configurados. | Implementado |
+| RF-13 | El sistema deberá centralizar y permitir atender alertas operativas. | Implementado para inventario y actividades; ampliable a sensores |
+| RF-14 | El sistema deberá generar reportes operativos y administrativos con filtros y exportación. | Implementado |
 
 ## 5. Reglas de negocio
 
