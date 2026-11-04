@@ -99,10 +99,14 @@ function renderDashboard(data) {
     $("#kpiStaff").textContent=metrics.colaboradores;
     $("#kpiStock").textContent=metrics.stock_bajo;
     $("#kpiAlerts").textContent=metrics.alertas;
+    $("#kpiQuality").textContent=metrics.calidad_fuera;
+    $("#kpiAerators").textContent=metrics.aireadores_enc;
     renderChart("#cycleChart",data.ciclos);
     renderChart("#activityChart",data.actividades);
     renderChart("#movementChart",data.movimientos,"columns");
     renderChart("#alertChart",data.alertas);
+    renderChart("#qualityChart",data.calidad);
+    renderChart("#aerationChart",data.aireacion);
 }
 
 async function loadDashboard() {

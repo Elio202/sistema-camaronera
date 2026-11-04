@@ -581,6 +581,19 @@ class App(SimpleHTTPRequestHandler):
                 where,args=conditions("DATE(mi.creado_en)")
                 movements=c.execute("""SELECT mi.tipo etiqueta,COALESCE(SUM(mi.cantidad),0) valor FROM movimientos_inventario mi
                     LEFT JOIN piscinas p ON p.id=mi.piscina_id LEFT JOIN modulos m ON m.id=p.modulo_id LEFT JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY mi.tipo ORDER BY mi.tipo",args).fetchall()
+                where,args=conditions("DATE(q.fecha)")
+                quality=c.execute("""SELECT CASE WHEN
+                    q.oxigeno NOT BETWEEN (SELECT minimo FROM rangos_calidad_agua WHERE activo=1 ORDER BY id LIMIT 1) AND (SELECT maximo FROM rangos_calidad_agua WHERE activo=1 ORDER BY id LIMIT 1)
+                    OR q.temp NOT BETWEEN (SELECT minimo FROM rangos_calidad_agua WHERE parametro='Temperatura' AND activo=1 LIMIT 1) AND (SELECT maximo FROM rangos_calidad_agua WHERE parametro='Temperatura' AND activo=1 LIMIT 1)
+                    OR q.ph NOT BETWEEN (SELECT minimo FROM rangos_calidad_agua WHERE parametro='pH' AND activo=1 LIMIT 1) AND (SELECT maximo FROM rangos_calidad_agua WHERE parametro='pH' AND activo=1 LIMIT 1)
+                    OR q.salinidad NOT BETWEEN (SELECT minimo FROM rangos_calidad_agua WHERE parametro='Salinidad' AND activo=1 LIMIT 1) AND (SELECT maximo FROM rangos_calidad_agua WHERE parametro='Salinidad' AND activo=1 LIMIT 1)
+                    THEN 'Fuera de rango' ELSE 'Normal' END etiqueta,COUNT(*) valor
+                    FROM mediciones_calidad_agua q JOIN piscinas p ON p.id=q.piscina_id
+                    JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY etiqueta ORDER BY etiqueta",args).fetchall()
+                where,args=conditions()
+                aeration=c.execute("""SELECT IF(a.encendido=1,'Encendidos','Apagados') etiqueta,COUNT(*) valor
+                    FROM aireadores a JOIN piscinas p ON p.id=a.piscina_id
+                    JOIN modulos m ON m.id=p.modulo_id JOIN fincas f ON f.id=m.finca_id"""+where+" GROUP BY a.encendido ORDER BY a.encendido DESC",args).fetchall()
                 alert_where,alert_args=conditions("DATE(a.generada_en)",False)
                 alert_rows=[]
                 if alerts_table_ready(c):
@@ -590,8 +603,10 @@ class App(SimpleHTTPRequestHandler):
                     "piscinas":int(pool["total"] or 0),"disponibles":int(pool["disponibles"] or 0),"sembradas":int(pool["sembradas"] or 0),"cosechadas":int(pool["cosechadas"] or 0),
                     "colaboradores":c.execute("SELECT COUNT(*) total FROM colaboradores WHERE estado=1").fetchone()["total"],
                     "stock_bajo":c.execute("SELECT COUNT(*) total FROM productos_alimento WHERE estado=1 AND stock_actual<=stock_minimo").fetchone()["total"],
-                    "alertas":sum(int(row["valor"]) for row in alert_rows if row["etiqueta"]=="Pendiente")}
-            return self.json(200,{"dashboard":{"metricas":metrics,"ciclos":[dict(row) for row in cycles],"actividades":[dict(row) for row in activities],"movimientos":[dict(row) for row in movements],"alertas":[dict(row) for row in alert_rows],"fincas":farms,"modulos":modules,"desde":start,"hasta":end}})
+                    "alertas":sum(int(row["valor"]) for row in alert_rows if row["etiqueta"]=="Pendiente"),
+                    "calidad_fuera":sum(int(row["valor"]) for row in quality if row["etiqueta"]=="Fuera de rango"),
+                    "aireadores_enc":sum(int(row["valor"]) for row in aeration if row["etiqueta"]=="Encendidos")}
+            return self.json(200,{"dashboard":{"metricas":metrics,"ciclos":[dict(row) for row in cycles],"actividades":[dict(row) for row in activities],"movimientos":[dict(row) for row in movements],"calidad":[dict(row) for row in quality],"aireacion":[dict(row) for row in aeration],"alertas":[dict(row) for row in alert_rows],"fincas":farms,"modulos":modules,"desde":start,"hasta":end}})
         if path=="/api/piscinas":
             if not self.require("piscinas.ver"): return
             if not module_tables_ready(): return self.json(503,{"error":"Ejecute la migración de módulos en MariaDB."})
