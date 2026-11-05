@@ -4,20 +4,26 @@ const can = permission => currentUser?.permisos?.includes(permission);
 const normalize = value => String(value ?? "").toLocaleLowerCase("es");
 
 async function load() {
-    [products, moves, pools, staff] = await Promise.all([
+    const optionsPromise = can("inventario.registrar")
+        ? api("/api/inventario-opciones")
+        : Promise.resolve({piscinas: [], colaboradores: []});
+    const [loadedProducts, loadedMoves, options] = await Promise.all([
         api("/api/productos").then(result => result.productos),
         api("/api/movimientos").then(result => result.movimientos),
-        api("/api/piscinas").then(result => result.piscinas),
-        api("/api/colaboradores").then(result => result.colaboradores)
+        optionsPromise
     ]);
+    products = loadedProducts;
+    moves = loadedMoves;
+    pools = options.piscinas;
+    staff = options.colaboradores;
     render();
     $("#moveProduct").innerHTML = products.filter(item => item.estado).map(item =>
         `<option value="${item.id}">${safe(item.nombre)} (${Number(item.stock_actual).toFixed(2)} ${safe(item.unidad)})</option>`
     ).join("");
-    $("#movePool").innerHTML = pools.filter(item => item.estado).map(item =>
-        `<option value="${item.id}">${safe(item.codigo_productivo)}</option>`
+    $("#movePool").innerHTML = pools.map(item =>
+        `<option value="${item.id}">${safe(item.codigo)}</option>`
     ).join("");
-    $("#moveStaff").innerHTML = staff.filter(item => item.estado).map(item =>
+    $("#moveStaff").innerHTML = staff.map(item =>
         `<option value="${item.id}">${safe(item.nombre)}</option>`
     ).join("");
 }

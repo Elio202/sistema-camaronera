@@ -84,5 +84,29 @@ class AuthFlowTests(unittest.TestCase):
     def test_11_logout_invalida_sesion(self):
         client=Client(self.base); self.assertEqual(client.request("/api/login","POST",{"usuario":"admin","password":"Admin123!"})[0],200)
         self.assertEqual(client.request("/api/logout","POST",{})[0],200); self.assertEqual(client.request("/api/me")[0],401)
+    def test_12_bodega_registra_inventario_sin_acceder_a_modulos_ajenos(self):
+        payload=self.create_user("_bodega",6); client=Client(self.base)
+        self.assertEqual(client.request("/api/login","POST",{"usuario":payload["nombre_usuario"],"password":payload["password"]})[0],200)
+        self.assertEqual(client.request("/api/productos")[0],200)
+        self.assertEqual(client.request("/api/movimientos")[0],200)
+        self.assertEqual(client.request("/api/inventario-opciones")[0],200)
+        self.assertEqual(client.request("/api/piscinas")[0],403)
+        self.assertEqual(client.request("/api/colaboradores")[0],403)
+    def test_13_jefe_obtiene_opciones_para_asignar_actividades(self):
+        payload=self.create_user("_jefe",2); client=Client(self.base)
+        self.assertEqual(client.request("/api/login","POST",{"usuario":payload["nombre_usuario"],"password":payload["password"]})[0],200)
+        self.assertEqual(client.request("/api/colaboradores")[0],200)
+        self.assertEqual(client.request("/api/actividades")[0],200)
+        self.assertEqual(client.request("/api/personal-opciones")[0],200)
+    def test_14_resumen_no_expone_indicadores_sin_permiso(self):
+        payload=self.create_user("_bodega_resumen",6); client=Client(self.base)
+        self.assertEqual(client.request("/api/login","POST",{"usuario":payload["nombre_usuario"],"password":payload["password"]})[0],200)
+        status,body=client.request("/api/resumen")
+        self.assertEqual(status,200,body)
+        self.assertIn("productos_bajos",body["resumen"])
+        self.assertIn("alertas_pendientes",body["resumen"])
+        self.assertNotIn("colaboradores",body["resumen"])
+        self.assertNotIn("piscinas_activas",body["resumen"])
+        self.assertNotIn("calidad_fuera",body["resumen"])
 
 if __name__=="__main__": unittest.main(verbosity=2)

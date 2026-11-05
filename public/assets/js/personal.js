@@ -32,10 +32,13 @@ function formatSchedule(item) {
 }
 
 async function load() {
+    const optionsPromise = can("personal.asignar")
+        ? api("/api/personal-opciones").then(data => data.piscinas)
+        : Promise.resolve([]);
     [staff, tasks, pools] = await Promise.all([
         api("/api/colaboradores").then(data => data.colaboradores),
         api("/api/actividades").then(data => data.actividades),
-        api("/api/piscinas").then(data => data.piscinas)
+        optionsPromise
     ]);
 
     $("#taskStaff").innerHTML = staff
@@ -50,8 +53,7 @@ async function load() {
         .join("");
 
     $("#taskPool").innerHTML = '<option value="">Trabajos varios (sin piscina)</option>' + pools
-        .filter(item => item.estado)
-        .map(item => `<option value="${item.id}">${safe(item.codigo_productivo)}</option>`)
+        .map(item => `<option value="${item.id}">${safe(item.codigo)}</option>`)
         .join("");
 
     renderStaff();

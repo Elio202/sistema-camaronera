@@ -45,19 +45,29 @@ async function loadDashboardSensor(force = false) {
         const permission = routePermissions[route];
         if (permission && !user.permisos.includes(permission)) link.hidden = true;
     });
+    const cardPermissions = {
+        availablePoolCount: "piscinas.ver", activePoolCount: "piscinas.ver",
+        staffCount: "personal.ver", pendingCount: "personal.ver", overdueCount: "personal.ver",
+        lowCount: "inventario.ver", qualityAlertCount: "calidad_agua.ver",
+        aeratorOnCount: "aireacion.ver", lowOxygenCount: "aireacion.ver",
+        alertCount: "alertas.ver"
+    };
+    for (const [id, permission] of Object.entries(cardPermissions)) {
+        if (!user.permisos.includes(permission)) $("#" + id).closest("a").hidden = true;
+    }
     const {
         resumen
     } = await api("/api/resumen");
-    $("#availablePoolCount").textContent = resumen.piscinas_disponibles;
-    $("#activePoolCount").textContent = resumen.piscinas_activas;
-    $("#staffCount").textContent = resumen.colaboradores;
-    $("#pendingCount").textContent = resumen.pendientes;
-    $("#overdueCount").textContent = resumen.vencidas;
-    $("#lowCount").textContent = resumen.productos_bajos;
-    $("#qualityAlertCount").textContent = resumen.calidad_fuera;
-    $("#aeratorOnCount").textContent = resumen.aireadores_encendidos;
-    $("#lowOxygenCount").textContent = resumen.aireacion_baja;
-    $("#alertCount").textContent = resumen.alertas_pendientes;
+    $("#availablePoolCount").textContent = resumen.piscinas_disponibles ?? "—";
+    $("#activePoolCount").textContent = resumen.piscinas_activas ?? "—";
+    $("#staffCount").textContent = resumen.colaboradores ?? "—";
+    $("#pendingCount").textContent = resumen.pendientes ?? "—";
+    $("#overdueCount").textContent = resumen.vencidas ?? "—";
+    $("#lowCount").textContent = resumen.productos_bajos ?? "—";
+    $("#qualityAlertCount").textContent = resumen.calidad_fuera ?? "—";
+    $("#aeratorOnCount").textContent = resumen.aireadores_encendidos ?? "—";
+    $("#lowOxygenCount").textContent = resumen.aireacion_baja ?? "—";
+    $("#alertCount").textContent = resumen.alertas_pendientes ?? "—";
     if (user.permisos.includes("monitoreo.ver")) {
         await loadDashboardSensor();
         $("#dashRefreshSensor").onclick = () => loadDashboardSensor(true);

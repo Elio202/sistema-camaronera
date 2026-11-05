@@ -428,13 +428,14 @@ class App(SimpleHTTPRequestHandler):
                 rows=c.execute("SELECT u.id,u.nombre_usuario,u.nombre,u.correo,u.estado,u.creado_en,r.id rol_id,r.nombre rol FROM usuarios u JOIN roles r ON r.id=u.rol_id ORDER BY u.id").fetchall()
                 return self.json(200,{"usuarios":[dict(x) for x in rows]})
         if path=="/api/resumen":
-            if not self.require(): return
+            user=self.require()
+            if not user:return
             if not module_tables_ready(): return self.json(503,{"error":"Ejecute la migración de módulos en MariaDB."})
             with db() as c:
                 refresh_activity_statuses(c)
                 alerts_ready=alerts_table_ready(c)
                 if alerts_ready: sync_alerts(c)
-                data={
+                all_data={
                     "piscinas_disponibles":c.execute("""SELECT COUNT(*) total FROM piscinas p
                         WHERE p.estado=1 AND NOT EXISTS (
                             SELECT 1 FROM ciclos_piscina c
@@ -453,6 +454,17 @@ class App(SimpleHTTPRequestHandler):
                     "calidad_fuera":c.execute("SELECT COUNT(*) total FROM alertas WHERE clave='calidad_fuera_rango' AND estado IN ('Pendiente','Atendida')").fetchone()["total"] if alerts_ready else 0,
                     "aireadores_encendidos":c.execute("SELECT COUNT(*) total FROM aireadores WHERE activo=1 AND encendido=1").fetchone()["total"],
                     "aireacion_baja":c.execute("SELECT COUNT(*) total FROM alertas WHERE clave='oxigeno_bajo' AND estado IN ('Pendiente','Atendida')").fetchone()["total"] if alerts_ready else 0}
+                permissions=set(user["permisos"])
+                data={}
+                if "piscinas.ver" in permissions:
+                    data.update({key:all_data[key] for key in ("piscinas_disponibles","piscinas_activas")})
+                if "personal.ver" in permissions:
+                    data.update({key:all_data[key] for key in ("colaboradores","pendientes","vencidas")})
+                if "inventario.ver" in permissions:data["productos_bajos"]=all_data["productos_bajos"]
+                if "alertas.ver" in permissions:data["alertas_pendientes"]=all_data["alertas_pendientes"]
+                if "calidad_agua.ver" in permissions:data["calidad_fuera"]=all_data["calidad_fuera"]
+                if "aireacion.ver" in permissions:
+                    data.update({key:all_data[key] for key in ("aireadores_encendidos","aireacion_baja")})
                 return self.json(200,{"resumen":data})
         if path=="/api/alertas":
             if not self.require("alertas.ver"): return
@@ -675,6 +687,21 @@ class App(SimpleHTTPRequestHandler):
         if path=="/api/colaboradores":
             if not self.require("personal.ver"): return
             with db() as c: return self.json(200,{"colaboradores":[dict(x) for x in c.execute("SELECT * FROM colaboradores ORDER BY nombre").fetchall()]})
+        if path=="/api/personal-opciones":
+            if not self.require("personal.asignar"):return
+            with db() as c:
+                rows=c.execute("""SELECT piscina_id id,codigo_productivo codigo,estado_ciclo
+                    FROM vista_piscinas_ciclo_actual
+                    WHERE piscina_activa=1 ORDER BY codigo_productivo""").fetchall()
+                return self.json(200,{"piscinas":[dict(row) for row in rows]})
+        if path=="/api/inventario-opciones":
+            if not self.require("inventario.registrar"):return
+            with db() as c:
+                pools=c.execute("""SELECT piscina_id id,codigo_productivo codigo,estado_ciclo
+                    FROM vista_piscinas_ciclo_actual
+                    WHERE piscina_activa=1 ORDER BY codigo_productivo""").fetchall()
+                staff=c.execute("SELECT id,nombre FROM colaboradores WHERE estado=1 ORDER BY nombre").fetchall()
+                return self.json(200,{"piscinas":[dict(row) for row in pools],"colaboradores":[dict(row) for row in staff]})
         if path=="/api/actividades":
             if not self.require("personal.ver"): return
             with db() as c:

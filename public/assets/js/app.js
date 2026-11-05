@@ -25,8 +25,27 @@ async function api(path, options = {}) {
 function can(p) {
     return current?.permisos.includes(p)
 }
+function applyNavigationPermissions() {
+    const routePermissions = {
+        '/piscinas.html': 'piscinas.ver', '/personal.html': 'personal.ver',
+        '/inventario.html': 'inventario.ver', '/alertas.html': 'alertas.ver',
+        '/aireacion.html': 'aireacion.ver', '/calidad.html': 'calidad_agua.ver',
+        '/monitoreo.html': 'monitoreo.ver', '/reportes.html': 'reportes.ver',
+        '/app.html': 'usuarios.ver', '/roles.html': 'roles.ver'
+    };
+    document.querySelectorAll('aside nav a').forEach(link => {
+        const route = new URL(link.href, location.origin).pathname;
+        const permission = routePermissions[route];
+        if (permission && !can(permission)) link.hidden = true;
+    });
+}
 async function load() {
     current = (await api('/api/me')).usuario;
+    if (!can('usuarios.ver')) {
+        location.href = '/dashboard.html';
+        return;
+    }
+    applyNavigationPermissions();
     $('#currentName').textContent = current.nombre;
     $('#currentRole').textContent = current.rol;
     $('#avatar').textContent = current.nombre[0].toUpperCase();
