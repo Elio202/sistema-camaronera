@@ -482,7 +482,7 @@ class App(SimpleHTTPRequestHandler):
             try:
                 with db() as c:
                     equipment=[dict(row) for row in c.execute("""SELECT a.id,a.piscina_id,a.codigo,a.modo,a.encendido,a.activo,a.oxigeno,
-                        a.umbral_enc,a.umbral_apa,a.actualizado,COALESCE(v.codigo_productivo,p.codigo) piscina
+                        a.umbral_enc,a.umbral_apa,a.pos_x,a.pos_y,a.actualizado,COALESCE(v.codigo_productivo,p.codigo) piscina
                         FROM aireadores a JOIN piscinas p ON p.id=a.piscina_id
                         LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
                         ORDER BY a.activo DESC,a.codigo""").fetchall()]
@@ -491,7 +491,7 @@ class App(SimpleHTTPRequestHandler):
                         FROM eventos_aireacion e JOIN aireadores a ON a.id=e.aireador_id
                         JOIN piscinas p ON p.id=a.piscina_id LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
                         JOIN usuarios u ON u.id=e.usuario_id ORDER BY e.id DESC LIMIT 200""").fetchall()]
-                    pools=[dict(row) for row in c.execute("""SELECT p.id,COALESCE(v.codigo_productivo,p.codigo) codigo
+                    pools=[dict(row) for row in c.execute("""SELECT p.id,COALESCE(v.codigo_productivo,p.codigo) codigo,p.area_m2
                         FROM piscinas p LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
                         WHERE p.estado=1 ORDER BY codigo""").fetchall()]
             except Exception:
@@ -1135,6 +1135,13 @@ class App(SimpleHTTPRequestHandler):
                     active=bool(data["activo"])
                     c.execute("UPDATE aireadores SET activo=?,encendido=IF(?=0,0,encendido) WHERE id=?",(active,active,air_id))
                     detail="Aireador activado." if active else "Aireador desactivado y apagado."
+                elif set(data)=={"pos_x","pos_y"}:
+                    try:x=float(data["pos_x"]);y=float(data["pos_y"])
+                    except (TypeError,ValueError):return self.json(400,{"error":"La ubicación del aireador no es válida."})
+                    if not 4<=x<=96 or not 4<=y<=96 or ((x-50)**2+(y-50)**2)**0.5>44:
+                        return self.json(400,{"error":"El aireador debe quedar dentro del área de la piscina."})
+                    c.execute("UPDATE aireadores SET pos_x=?,pos_y=? WHERE id=?",(round(x,2),round(y,2),air_id))
+                    return self.json(200,{"ok":True})
                 else:
                     codigo=clean_text(data,"codigo",2,30)
                     try:piscina=int(data.get("piscina_id")); enc=float(data.get("umbral_enc")); apa=float(data.get("umbral_apa"))

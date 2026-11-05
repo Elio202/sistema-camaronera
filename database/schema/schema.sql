@@ -258,6 +258,8 @@ CREATE TABLE IF NOT EXISTS aireadores (
   oxigeno DECIMAL(6,2) NULL,
   umbral_enc DECIMAL(6,2) NOT NULL DEFAULT 4.00,
   umbral_apa DECIMAL(6,2) NOT NULL DEFAULT 5.50,
+  pos_x DECIMAL(5,2) NULL,
+  pos_y DECIMAL(5,2) NULL,
   actualizado DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   CONSTRAINT uq_aireador_codigo UNIQUE (codigo),
   CONSTRAINT fk_aireador_piscina FOREIGN KEY (piscina_id) REFERENCES piscinas(id),

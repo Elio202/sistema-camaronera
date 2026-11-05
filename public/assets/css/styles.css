@@ -645,37 +645,64 @@ dialog form {
     cursor: pointer
 }
 
-.grid {
+.grid,
+.form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 18px;
     margin-top: 23px
 }
 
-.grid label {
+.grid label,
+.form-grid label,
+dialog form > label {
+    display: block;
     font-size: 13px;
     font-weight: 600
 }
 
 .grid input,
-.grid select {
+.grid select,
+.grid textarea,
+.form-grid input,
+.form-grid select,
+.form-grid textarea,
+dialog form > label input,
+dialog form > label select,
+dialog form > label textarea {
     display: block;
     width: 100%;
     margin-top: 7px;
     padding: 11px 12px;
     border: 1px solid var(--line);
     border-radius: 9px;
-    background: #fff
+    background: #fff;
+    color: var(--navy);
+    font: inherit
 }
 
-.grid .full {
+.grid textarea,
+.form-grid textarea,
+dialog form > label textarea {
+    min-height: 92px;
+    resize: vertical
+}
+
+.grid .full,
+.form-grid .full {
     grid-column: 1/-1
 }
 
 .dialog-actions {
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 16px
+    margin-top: 22px
+}
+
+.dialog-actions .primary {
+    width: auto;
+    height: 42px;
+    padding: 0 22px
 }
 
 .secondary {
@@ -761,11 +788,13 @@ dialog form {
         flex-direction: column
     }
 
-    .grid {
+    .grid,
+    .form-grid {
         grid-template-columns: 1fr
     }
 
-    .grid .full {
+    .grid .full,
+    .form-grid .full {
         grid-column: auto
     }
 
@@ -1416,9 +1445,111 @@ dialog form {
 .aerator-reading span { display:block;color:var(--muted) }
 .aerator-reading strong { display:inline-block;margin:5px 5px 0 0;color:var(--navy);font-size:40px }
 .aerator-condition { color:var(--muted);font-size:13px }
+.aerator-mode-note { min-height:36px;margin:10px 0 0;color:#56728d;font-size:12px;line-height:1.45 }
 .aerator-actions { display:flex;flex-wrap:wrap;gap:9px;margin-top:18px }
 .aerator-actions button { flex:1 }
 @media(max-width:900px) { .aerator-grid { grid-template-columns:1fr } }
+
+.pond-panel {
+    margin-bottom: 22px;
+    padding: 26px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 14px 36px rgba(5,35,75,.06);
+}
+
+.pond-panel-head,
+.pond-summary,
+.pond-legend {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.pond-panel-head h2 { margin: 4px 0 }
+.pond-panel-head label { display: grid; gap: 7px; min-width: min(300px,100%); font-size: 13px; font-weight: 700 }
+.pond-panel-head select { padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--navy) }
+.pond-summary { justify-content: flex-start; flex-wrap: wrap; margin: 22px 0 8px; color: var(--muted) }
+.pond-summary b { color: var(--navy); font-size: 17px }
+.pond-summary small { margin-left: auto }
+.pond-stage { display: grid; place-items: center; padding: 18px 0 }
+
+.pond-water {
+    position: relative;
+    width: min(680px,92vw);
+    max-width: 100%;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: 4px solid #4d82bc;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%,#f4fbff 0,#dceffc 42%,#b9dcf3 100%);
+    box-shadow: inset 0 0 0 10px rgba(255,255,255,.45),inset 0 -35px 70px rgba(31,112,169,.12),0 18px 45px rgba(5,35,75,.12);
+}
+
+.pond-water::before,
+.pond-water::after {
+    content: "";
+    position: absolute;
+    inset: 13%;
+    border: 1px dashed rgba(33,103,157,.22);
+    border-radius: 50%;
+}
+
+.pond-water::after { inset: 30%; }
+.pond-center { position: absolute; left: 50%; top: 50%; display: grid; z-index: 1; color: #315d80; text-align: center; transform: translate(-50%,-50%); pointer-events: none }
+.pond-center strong { font-size: clamp(14px,2vw,20px) }
+.pond-center span { margin-top: 4px; font-size: 12px }
+.pond-empty { position: absolute; left: 50%; top: 62%; width: 70%; color: #52738b; text-align: center; transform: translate(-50%,-50%) }
+
+.pond-aerator {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    z-index: 3;
+    width: 94px;
+    min-height: 74px;
+    padding: 7px;
+    border: 2px solid #7b9bb4;
+    border-radius: 14px;
+    background: rgba(255,255,255,.94);
+    color: var(--navy);
+    box-shadow: 0 7px 18px rgba(5,35,75,.2);
+    transform: translate(-50%,-50%);
+    cursor: grab;
+    touch-action: none;
+}
+
+.pond-aerator-icon { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: #dfeaf5; font-size: 22px; line-height: 1 }
+.pond-aerator b { max-width: 100%; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap }
+.pond-aerator small { font-size: 10px; color: var(--muted) }
+.pond-aerator.on { border-color: #1aa477 }
+.pond-aerator.on .pond-aerator-icon { background: #d9f6e9; color: #087e73; animation: aerator-spin 2.2s linear infinite }
+.pond-aerator.off { border-color: #7b9bb4 }
+.pond-aerator.low { border-color: #d54b4b; background: #fff3f3; box-shadow: 0 0 0 5px rgba(213,75,75,.13),0 7px 18px rgba(5,35,75,.2) }
+.pond-aerator.low .pond-aerator-icon { background: #f8dede; color: #b53232 }
+.pond-aerator.inactive { opacity: .62; filter: grayscale(1) }
+.pond-aerator.dragging { z-index: 5; cursor: grabbing; transform: translate(-50%,-50%) scale(1.06) }
+@keyframes aerator-spin { to { transform: rotate(360deg) } }
+
+.pond-legend { justify-content: center; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 12px }
+.pond-legend span { display: flex; align-items: center; gap: 6px }
+.pond-legend i { width: 11px; height: 11px; border-radius: 50%; background: #7b9bb4 }
+.pond-legend i.on { background: #1aa477 }
+.pond-legend i.low { background: #d54b4b }
+.pond-legend i.inactive { background: #a9afb4 }
+
+@media(max-width:650px) {
+    .pond-panel { padding: 20px 14px }
+    .pond-panel-head { align-items: stretch; flex-direction: column }
+    .pond-summary small { width: 100%; margin-left: 0 }
+    .pond-water { width: min(100%,520px) }
+    .pond-aerator { width: 72px; min-height: 62px; padding: 5px }
+    .pond-aerator-icon { width: 21px; height: 21px; font-size: 18px }
+    .pond-aerator b { font-size: 9px }
+    .pond-aerator small { font-size: 8px }
+}
 
 /* Ajustes adaptables generales */
 .content,
