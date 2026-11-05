@@ -167,27 +167,68 @@ def sync_alerts(c):
     """Mantiene una sola alerta abierta por cada condición operativa."""
     refresh_activity_statuses(c)
     timestamp=business_iso()
+    def sync_conditions(module,key,level,conditions):
+        active=set()
+        for condition in conditions:
+            reference=int(condition["id"]); active.add(reference)
+            latest=c.execute("SELECT id,estado FROM alertas WHERE modulo=? AND clave=? AND referencia_id=? ORDER BY id DESC LIMIT 1",(module,key,reference)).fetchone()
+            if latest and latest["estado"]!="Resuelta": continue
+            c.execute("INSERT INTO alertas(modulo,referencia_id,clave,titulo,descripcion,nivel,generada_en) VALUES(?,?,?,?,?,?,?)",
+                (module,reference,key,condition["titulo"],condition["descripcion"],level,timestamp))
+        opened=c.execute("SELECT id,referencia_id FROM alertas WHERE modulo=? AND clave=? AND estado IN ('Pendiente','Atendida')",(module,key)).fetchall()
+        for alert in opened:
+            if int(alert["referencia_id"]) not in active:
+                c.execute("UPDATE alertas SET estado='Resuelta',resuelta_en=? WHERE id=?",(timestamp,alert["id"]))
     sources=(
         ("Inventario","stock_bajo","Advertencia","SELECT id,codigo,nombre,stock_actual,stock_minimo,unidad FROM productos_alimento WHERE estado=1 AND stock_actual<=stock_minimo"),
         ("Personal","actividad_vencida","Crítica","SELECT id,descripcion,COALESCE(fecha_fin,fecha_limite) fecha_fin FROM actividades WHERE estado='Vencida'")
     )
     for module,key,level,sql in sources:
-        active=set()
+        conditions=[]
         for row in c.execute(sql).fetchall():
-            reference=int(row["id"]); active.add(reference)
-            latest=c.execute("SELECT id,estado FROM alertas WHERE modulo=? AND clave=? AND referencia_id=? ORDER BY id DESC LIMIT 1",(module,key,reference)).fetchone()
-            if latest and latest["estado"]!="Resuelta": continue
             if key=="stock_bajo":
                 title=f"Stock bajo: {row['nombre']}"
                 description=f"{row['codigo']} tiene {row['stock_actual']} {row['unidad']}; el mínimo es {row['stock_minimo']} {row['unidad']}."
             else:
                 title="Actividad vencida"
                 description=f"{row['descripcion']} finalizó el {row['fecha_fin']} sin confirmarse."
-            c.execute("INSERT INTO alertas(modulo,referencia_id,clave,titulo,descripcion,nivel,generada_en) VALUES(?,?,?,?,?,?,?)",(module,reference,key,title,description,level,timestamp))
-        opened=c.execute("SELECT id,referencia_id FROM alertas WHERE modulo=? AND clave=? AND estado IN ('Pendiente','Atendida')",(module,key)).fetchall()
-        for alert in opened:
-            if int(alert["referencia_id"]) not in active:
-                c.execute("UPDATE alertas SET estado='Resuelta',resuelta_en=? WHERE id=?",(timestamp,alert["id"]))
+            conditions.append({"id":row["id"],"titulo":title,"descripcion":description})
+        sync_conditions(module,key,level,conditions)
+    try:
+        ranges={str(row["parametro"]).lower():row for row in c.execute(
+            "SELECT parametro,minimo,maximo FROM rangos_calidad_agua WHERE activo=1 ORDER BY id"
+        ).fetchall()}
+        fields=(("oxigeno","oxígeno"),("temp","temperatura"),("ph","ph"),("salinidad","salinidad"))
+        quality=[]
+        latest=c.execute("""SELECT q.id,q.oxigeno,q.temp,q.ph,q.salinidad,COALESCE(v.codigo_productivo,p.codigo) piscina
+            FROM mediciones_calidad_agua q JOIN piscinas p ON p.id=q.piscina_id
+            LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
+            WHERE q.id=(SELECT q2.id FROM mediciones_calidad_agua q2
+                WHERE q2.piscina_id=q.piscina_id ORDER BY q2.fecha DESC,q2.id DESC LIMIT 1)""").fetchall()
+        for row in latest:
+            outside=[]
+            for field,key in fields:
+                limit=next((value for name,value in ranges.items() if key in name),None)
+                if limit and not (float(limit["minimo"])<=float(row[field])<=float(limit["maximo"])):
+                    outside.append(limit["parametro"])
+            if outside:
+                values=f"O2 {row['oxigeno']} mg/L, temperatura {row['temp']} °C, pH {row['ph']} y salinidad {row['salinidad']} ppt"
+                quality.append({"id":row["id"],"titulo":f"Calidad fuera de rango: {row['piscina']}","descripcion":f"Parámetros afectados: {', '.join(outside)}. Lectura: {values}."})
+        sync_conditions("Calidad del agua","calidad_fuera_rango","Crítica",quality)
+    except Exception:
+        pass
+    try:
+        aeration=[]
+        rows=c.execute("""SELECT a.id,a.codigo,a.oxigeno,a.umbral_enc,COALESCE(v.codigo_productivo,p.codigo) piscina
+            FROM aireadores a JOIN piscinas p ON p.id=a.piscina_id
+            LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
+            WHERE a.activo=1 AND a.oxigeno IS NOT NULL AND a.oxigeno<a.umbral_enc""").fetchall()
+        for row in rows:
+            aeration.append({"id":row["id"],"titulo":f"Oxígeno bajo: {row['piscina']}",
+                "descripcion":f"{row['codigo']} registra {row['oxigeno']} mg/L; el umbral de encendido es {row['umbral_enc']} mg/L."})
+        sync_conditions("Aireación","oxigeno_bajo","Crítica",aeration)
+    except Exception:
+        pass
 
 class MariaConnection:
     def __init__(self):
@@ -408,7 +449,10 @@ class App(SimpleHTTPRequestHandler):
                     "pendientes":c.execute("SELECT COUNT(*) total FROM actividades WHERE estado='Pendiente'").fetchone()["total"],
                     "vencidas":c.execute("SELECT COUNT(*) total FROM actividades WHERE estado='Vencida'").fetchone()["total"],
                     "productos_bajos":c.execute("SELECT COUNT(*) total FROM productos_alimento WHERE estado=1 AND stock_actual<=stock_minimo").fetchone()["total"],
-                    "alertas_pendientes":c.execute("SELECT COUNT(*) total FROM alertas WHERE estado='Pendiente'").fetchone()["total"] if alerts_ready else 0}
+                    "alertas_pendientes":c.execute("SELECT COUNT(*) total FROM alertas WHERE estado='Pendiente'").fetchone()["total"] if alerts_ready else 0,
+                    "calidad_fuera":c.execute("SELECT COUNT(*) total FROM alertas WHERE clave='calidad_fuera_rango' AND estado IN ('Pendiente','Atendida')").fetchone()["total"] if alerts_ready else 0,
+                    "aireadores_encendidos":c.execute("SELECT COUNT(*) total FROM aireadores WHERE activo=1 AND encendido=1").fetchone()["total"],
+                    "aireacion_baja":c.execute("SELECT COUNT(*) total FROM alertas WHERE clave='oxigeno_bajo' AND estado IN ('Pendiente','Atendida')").fetchone()["total"] if alerts_ready else 0}
                 return self.json(200,{"resumen":data})
         if path=="/api/alertas":
             if not self.require("alertas.ver"): return

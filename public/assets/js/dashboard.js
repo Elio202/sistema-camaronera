@@ -36,6 +36,8 @@ async function loadDashboardSensor(force = false) {
         "/personal.html": "personal.ver",
         "/inventario.html": "inventario.ver",
         "/alertas.html": "alertas.ver",
+        "/aireacion.html": "aireacion.ver",
+        "/calidad.html": "calidad_agua.ver",
         "/monitoreo.html": "monitoreo.ver"
     };
     document.querySelectorAll("main a[href]").forEach(link => {
@@ -52,6 +54,9 @@ async function loadDashboardSensor(force = false) {
     $("#pendingCount").textContent = resumen.pendientes;
     $("#overdueCount").textContent = resumen.vencidas;
     $("#lowCount").textContent = resumen.productos_bajos;
+    $("#qualityAlertCount").textContent = resumen.calidad_fuera;
+    $("#aeratorOnCount").textContent = resumen.aireadores_encendidos;
+    $("#lowOxygenCount").textContent = resumen.aireacion_baja;
     $("#alertCount").textContent = resumen.alertas_pendientes;
     if (user.permisos.includes("monitoreo.ver")) {
         await loadDashboardSensor();
