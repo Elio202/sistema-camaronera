@@ -469,7 +469,7 @@ class App(SimpleHTTPRequestHandler):
             if not self.require("aireacion.ver"): return
             try:
                 with db() as c:
-                    equipment=[dict(row) for row in c.execute("""SELECT a.id,a.codigo,a.modo,a.encendido,a.activo,a.oxigeno,
+                    equipment=[dict(row) for row in c.execute("""SELECT a.id,a.piscina_id,a.codigo,a.modo,a.encendido,a.activo,a.oxigeno,
                         a.umbral_enc,a.umbral_apa,a.actualizado,COALESCE(v.codigo_productivo,p.codigo) piscina
                         FROM aireadores a JOIN piscinas p ON p.id=a.piscina_id
                         LEFT JOIN vista_piscinas_ciclo_actual v ON v.piscina_id=p.id
@@ -497,7 +497,7 @@ class App(SimpleHTTPRequestHandler):
                     ranges=[dict(row) for row in c.execute(
                         "SELECT id,parametro,unidad,minimo,maximo,activo FROM rangos_calidad_agua ORDER BY id"
                     ).fetchall()]
-                    rows=[dict(row) for row in c.execute("""SELECT q.id,q.fecha,q.oxigeno,q.temp,q.ph,q.salinidad,q.notas,
+                    rows=[dict(row) for row in c.execute("""SELECT q.id,q.piscina_id,q.resp_id,q.fecha,q.oxigeno,q.temp,q.ph,q.salinidad,q.notas,
                         COALESCE(v.codigo_productivo,p.codigo) piscina,c.nombre responsable,u.nombre registrado_por
                         FROM mediciones_calidad_agua q
                         JOIN piscinas p ON p.id=q.piscina_id
@@ -939,6 +939,22 @@ class App(SimpleHTTPRequestHandler):
                 if not exists:return self.json(404,{"error":"La actividad no existe."})
                 c.execute("DELETE FROM actividades WHERE id=?",(record_id,))
             return self.json(200,{"ok":True})
+        if resource=="calidad":
+            if not self.require("calidad_agua.registrar"):return
+            with db() as c:
+                if not c.execute("SELECT 1 FROM mediciones_calidad_agua WHERE id=?",(record_id,)).fetchone():return self.json(404,{"error":"La medición no existe."})
+                c.execute("DELETE FROM alertas WHERE clave='calidad_fuera_rango' AND referencia_id=?",(record_id,))
+                c.execute("DELETE FROM mediciones_calidad_agua WHERE id=?",(record_id,))
+            return self.json(200,{"ok":True})
+        if resource=="aireacion":
+            if not self.require("aireacion.operar"):return
+            with db() as c:
+                if not c.execute("SELECT 1 FROM aireadores WHERE id=?",(record_id,)).fetchone():return self.json(404,{"error":"El aireador no existe."})
+                if c.execute("SELECT 1 FROM eventos_aireacion WHERE aireador_id=? LIMIT 1",(record_id,)).fetchone():
+                    return self.json(409,{"error":"El aireador tiene historial y no puede eliminarse. Puede desactivarlo."})
+                c.execute("DELETE FROM alertas WHERE clave='oxigeno_bajo' AND referencia_id=?",(record_id,))
+                c.execute("DELETE FROM aireadores WHERE id=?",(record_id,))
+            return self.json(200,{"ok":True})
         if resource=="usuarios":
             user=self.require("usuarios.editar")
             if not user:return
@@ -1055,6 +1071,53 @@ class App(SimpleHTTPRequestHandler):
             estado=data.get("estado")
             if estado not in ("Pendiente","Realizada"):return self.json(400,{"error":"Estado no válido."})
             with db() as c:c.execute("UPDATE actividades SET estado=?,realizada_en=? WHERE id=?",(estado,iso() if estado=="Realizada" else None,activity_id))
+            return self.json(200,{"ok":True})
+        if resource=="calidad":
+            if not self.require("calidad_agua.registrar"):return
+            try:
+                measurement_id=int(parts[2]); piscina=int(data.get("piscina_id")); responsable=int(data.get("resp_id"))
+                oxigeno=float(data.get("oxigeno")); temp=float(data.get("temp")); ph=float(data.get("ph")); salinidad=float(data.get("salinidad"))
+                fecha=datetime.fromisoformat(str(data.get("fecha","")).replace("T"," "))
+            except (TypeError,ValueError):return self.json(400,{"error":"Complete todos los datos con valores válidos."})
+            if oxigeno<0 or temp<0 or not 0<=ph<=14 or salinidad<0:return self.json(400,{"error":"Revise los valores registrados."})
+            with db() as c:
+                if not c.execute("SELECT 1 FROM mediciones_calidad_agua WHERE id=?",(measurement_id,)).fetchone():return self.json(404,{"error":"La medición no existe."})
+                if not c.execute("SELECT 1 FROM piscinas WHERE id=? AND estado=1",(piscina,)).fetchone():return self.json(400,{"error":"La piscina no está activa."})
+                if not c.execute("SELECT 1 FROM colaboradores WHERE id=? AND estado=1",(responsable,)).fetchone():return self.json(400,{"error":"El responsable no está activo."})
+                c.execute("""UPDATE mediciones_calidad_agua SET piscina_id=?,resp_id=?,fecha=?,oxigeno=?,temp=?,ph=?,salinidad=?,notas=? WHERE id=?""",
+                    (piscina,responsable,fecha.strftime("%Y-%m-%d %H:%M:%S"),oxigeno,temp,ph,salinidad,clean_text(data,"notas",0,300) or None,measurement_id))
+            return self.json(200,{"ok":True})
+        if resource=="rangos-calidad":
+            if not self.require("calidad_agua.atender_alertas"):return
+            try:range_id=int(parts[2]); minimum=float(data.get("minimo")); maximum=float(data.get("maximo"))
+            except (TypeError,ValueError):return self.json(400,{"error":"Ingrese límites válidos."})
+            if minimum<0 or maximum<=minimum:return self.json(400,{"error":"El máximo debe ser mayor que el mínimo."})
+            with db() as c:
+                if not c.execute("SELECT 1 FROM rangos_calidad_agua WHERE id=?",(range_id,)).fetchone():return self.json(404,{"error":"El rango no existe."})
+                c.execute("UPDATE rangos_calidad_agua SET minimo=?,maximo=? WHERE id=?",(minimum,maximum,range_id))
+            return self.json(200,{"ok":True})
+        if resource=="aireacion":
+            user=self.require("aireacion.operar")
+            if not user:return
+            try:air_id=int(parts[2])
+            except ValueError:return self.json(400,{"error":"Aireador no válido."})
+            with db() as c:
+                item=c.execute("SELECT * FROM aireadores WHERE id=? FOR UPDATE",(air_id,)).fetchone()
+                if not item:return self.json(404,{"error":"El aireador no existe."})
+                if set(data)=={"activo"}:
+                    active=bool(data["activo"])
+                    c.execute("UPDATE aireadores SET activo=?,encendido=IF(?=0,0,encendido) WHERE id=?",(active,active,air_id))
+                    detail="Aireador activado." if active else "Aireador desactivado y apagado."
+                else:
+                    codigo=clean_text(data,"codigo",2,30)
+                    try:piscina=int(data.get("piscina_id")); enc=float(data.get("umbral_enc")); apa=float(data.get("umbral_apa"))
+                    except (TypeError,ValueError):return self.json(400,{"error":"Complete la configuración del aireador."})
+                    if not codigo or enc<0 or apa<=enc:return self.json(400,{"error":"El umbral de apagado debe superar al de encendido."})
+                    if not c.execute("SELECT 1 FROM piscinas WHERE id=? AND estado=1",(piscina,)).fetchone():return self.json(400,{"error":"La piscina no está activa."})
+                    if c.execute("SELECT 1 FROM aireadores WHERE codigo=? AND id<>?",(codigo.upper(),air_id)).fetchone():return self.json(409,{"error":"Ya existe otro aireador con ese código."})
+                    c.execute("UPDATE aireadores SET piscina_id=?,codigo=?,umbral_enc=?,umbral_apa=? WHERE id=?",(piscina,codigo.upper(),enc,apa,air_id))
+                    detail="Configuración del aireador actualizada."
+                c.execute("INSERT INTO eventos_aireacion(aireador_id,usuario_id,accion,origen,oxigeno,detalle) VALUES(?,?,?,?,?,?)",(air_id,user["id"],"Modo","Manual",item["oxigeno"],detail))
             return self.json(200,{"ok":True})
         if resource=="ciclos":
             if not self.require("piscinas.editar"):return

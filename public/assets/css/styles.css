@@ -1411,6 +1411,7 @@ dialog form {
 .aerator-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px }
 .aerator-card { padding:24px;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 14px 36px rgba(5,35,75,.06) }
 .aerator-card.aerator-alert { border-color:#e7a9a9;background:#fffafa }
+.aerator-card.aerator-inactive { opacity:.72;background:#f5f7f8 }
 .aerator-reading { margin:22px 0 10px;padding:20px;border-radius:15px;background:#f5f9fe }
 .aerator-reading span { display:block;color:var(--muted) }
 .aerator-reading strong { display:inline-block;margin:5px 5px 0 0;color:var(--navy);font-size:40px }
