@@ -8,24 +8,38 @@ function dashboardTemperaturePosition(sensor) {
     return Math.max(0, Math.min(100, (value - minimum) * 100 / (maximum - minimum)));
 }
 
+const SENSOR_CACHE_KEY="pacificGoldLastMonitor";
+function cachedDashboardSensor(){
+    try{return JSON.parse(localStorage.getItem(SENSOR_CACHE_KEY)||"null")?.sensores?.[0]||null;}
+    catch{return null;}
+}
+
+function renderDashboardSensor(sensor,offline=false){
+    $("#dashSensorName").textContent = sensor.nombre || "Monitoreo ambiental";
+    $("#dashTemperature").textContent = sensor.temperaturaC ?? "—";
+    $("#dashHumidity").textContent = sensor.humedadPct ?? "—";
+    const online=!offline&&Boolean(sensor.enLinea);
+    $("#dashSensorState").textContent = online ? (sensor.estado || "En línea") : "Sin conexión";
+    $("#dashSensorState").className = `dashboard-state ${online && String(sensor.estado).toUpperCase() === "OK" ? "ok" : "alert"}`;
+    $("#dashSensorRange").textContent = `Rango ${sensor.tempMinC ?? "—"} a ${sensor.tempMaxC ?? "—"} °C`;
+    $("#dashSensorTime").textContent = dashboardDate(sensor.ultimoDatoEn);
+    $("#dashSensorBattery").textContent = `Batería: ${{high:"alta",middle:"media",low:"baja"}[String(sensor.bateria || "").toLowerCase()] || sensor.bateria || "—"}`;
+    $("#dashTempMarker").style.left = `${dashboardTemperaturePosition(sensor)}%`;
+}
+
 async function loadDashboardSensor(force = false) {
     const message = $("#dashSensorMessage");
     try {
         const {monitoreo} = await api(`/api/monitoreo${force ? "?actualizar=1" : ""}`);
         const sensor = monitoreo.sensores[0];
         if (!sensor) throw new Error("No hay sensores disponibles.");
-        $("#dashSensorName").textContent = sensor.nombre || "Monitoreo ambiental";
-        $("#dashTemperature").textContent = sensor.temperaturaC ?? "—";
-        $("#dashHumidity").textContent = sensor.humedadPct ?? "—";
-        $("#dashSensorState").textContent = sensor.enLinea ? (sensor.estado || "En línea") : "Sin conexión";
-        $("#dashSensorState").className = `dashboard-state ${sensor.enLinea && String(sensor.estado).toUpperCase() === "OK" ? "ok" : "alert"}`;
-        $("#dashSensorRange").textContent = `Rango ${sensor.tempMinC ?? "—"} a ${sensor.tempMaxC ?? "—"} °C`;
-        $("#dashSensorTime").textContent = dashboardDate(sensor.ultimoDatoEn);
-        $("#dashSensorBattery").textContent = `Batería: ${{high:"alta",middle:"media",low:"baja"}[String(sensor.bateria || "").toLowerCase()] || sensor.bateria || "—"}`;
-        $("#dashTempMarker").style.left = `${dashboardTemperaturePosition(sensor)}%`;
+        localStorage.setItem(SENSOR_CACHE_KEY,JSON.stringify(monitoreo));
+        renderDashboardSensor(sensor);
         message.textContent = "";
     } catch (error) {
-        showMessage(message, error.message);
+        const sensor=cachedDashboardSensor()||{nombre:"Sensor ambiental",temperaturaC:null,humedadPct:null,tempMinC:null,tempMaxC:null,ultimoDatoEn:null,bateria:null};
+        renderDashboardSensor(sensor,true);
+        showMessage(message,`Sensor desconectado. ${error.message}`);
     }
 }
 

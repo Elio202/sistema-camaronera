@@ -1,6 +1,12 @@
 const monitorGrid = $("#monitorGrid");
 const monitorMessage = $("#monitorMessage");
 const refreshButton = $("#refreshMonitor");
+const SENSOR_CACHE_KEY="pacificGoldLastMonitor";
+
+function cachedMonitor(){
+    try{return JSON.parse(localStorage.getItem(SENSOR_CACHE_KEY)||"null");}
+    catch{return null;}
+}
 
 function dateTime(value) {
     if (!value) return "Sin lectura";
@@ -46,6 +52,7 @@ async function loadMonitor(force = false, notify = false) {
     monitorMessage.textContent = "";
     try {
         const {monitoreo} = await api(`/api/monitoreo${force ? "?actualizar=1" : ""}`);
+        localStorage.setItem(SENSOR_CACHE_KEY,JSON.stringify(monitoreo));
         monitorGrid.innerHTML = monitoreo.sensores.map(renderSensor).join("") || '<article class="empty-state">No hay sensores disponibles.</article>';
         const queryTime = new Date().toLocaleTimeString("es-GT", {hour: "2-digit", minute: "2-digit", second: "2-digit"});
         $("#monitorUpdated").textContent = `Consulta realizada a las ${queryTime}`;
@@ -59,7 +66,11 @@ async function loadMonitor(force = false, notify = false) {
             }, 3500);
         }
     } catch (error) {
-        showMessage(monitorMessage, error.message);
+        const cached=cachedMonitor();
+        const sensors=cached?.sensores?.length?cached.sensores:[{nombre:"Sensor ambiental",temperaturaC:null,humedadPct:null,tempMinC:null,tempMaxC:null,ultimoDatoEn:null,bateria:null}];
+        monitorGrid.innerHTML=sensors.map(sensor=>renderSensor({...sensor,enLinea:false,estado:"Sin conexión"})).join("");
+        $("#monitorUpdated").textContent=cached?"Mostrando la última lectura guardada":"Esperando la primera lectura del sensor";
+        showMessage(monitorMessage,`Sensor desconectado. ${error.message}`);
     } finally {
         const remaining = 1000 - (Date.now() - startedAt);
         if (remaining > 0) await new Promise(resolve => setTimeout(resolve, remaining));
