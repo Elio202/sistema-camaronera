@@ -2,11 +2,15 @@
 
 import sys
 
-from app.controllers import application_controller
+from app import core
+from app.application import run
+from app.routes.http_routes import App
 
 
 if __name__ == "__main__":
-    application_controller.run()
+    run()
 else:
     # Conserva compatibilidad con pruebas y herramientas que importan `server`.
-    sys.modules[__name__] = application_controller
+    core.App = App
+    core.run = run
+    sys.modules[__name__] = core

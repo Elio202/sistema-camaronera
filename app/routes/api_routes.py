@@ -1,8 +1,7 @@
 """Catálogo central de rutas de la API.
 
-El catálogo documenta qué controlador funcional atiende cada recurso. Durante
-la refactorización, los manejadores se extraen gradualmente desde
-``controllers.application_controller`` sin cambiar las URL públicas.
+El catálogo documenta los recursos públicos. ``http_routes`` ensambla los
+controladores separados por método HTTP sin cambiar las URL de la aplicación.
 """
 
 ROUTE_GROUPS = {

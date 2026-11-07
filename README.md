@@ -13,6 +13,12 @@ actividades, alimento, alertas, monitoreo ambiental y reportes.
 ## Estructura
 
 ```text
+app/                   Backend organizado por responsabilidades
+  routes/              Ensamblaje y catálogo de rutas HTTP
+  controllers/         Controladores GET, POST, PATCH y DELETE
+  services/            Reglas de negocio, alertas y sensores
+  repositories/        Acceso reutilizable a los datos
+  database/            Conexión e inicialización de MySQL/MariaDB
 database/              Esquema, migraciones y herramientas de base de datos
 docs/                  Documentación funcional, manuales y diagramas
 public/                Interfaz web
@@ -21,7 +27,7 @@ public/                Interfaz web
   assets/js/           Lógica de las pantallas
 tests/                 Pruebas automatizadas
 tools/                 Utilidades de verificación y documentación
-server.py              Servidor y API de la aplicación
+server.py              Punto de entrada local y de Railway
 ```
 
 ## Ejecución local
