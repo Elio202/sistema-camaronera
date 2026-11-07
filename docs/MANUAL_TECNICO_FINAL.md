@@ -2,138 +2,163 @@
 
 ## Sistema de gestión acuícola Pacific Gold
 
-**Versión:** 3.0
-**Fecha:** 4 de noviembre de 2026
+**Versión:** 4.0
+**Fecha:** 7 de noviembre de 2026
+**Producción:** https://web-production-5dd5b.up.railway.app
 
 ## 1. Arquitectura
 
 Aplicación web Full-Stack con patrón cliente-servidor:
 
 - Frontend en HTML, CSS y JavaScript bajo `public/`.
-- Backend y API HTTP en Python mediante `server.py`.
-- MariaDB para desarrollo local y MySQL en producción.
-- Código fuente versionado con Git y GitHub.
-- Aplicación y base productiva alojadas en Railway.
+- Backend y API HTTP en Python bajo `app/`.
+- `server.py` como punto de entrada compatible con desarrollo y Railway.
+- MariaDB para desarrollo local y MySQL 8 en producción.
+- Comunicación cliente-servidor mediante endpoints JSON bajo `/api/`.
+- GitHub para control de versiones y Railway para aplicación y base productiva.
+
+Es una arquitectura monolítica modular: se despliega como un servicio, pero el código está separado por rutas, controladores, servicios, repositorios y acceso a datos.
 
 ## 2. Organización del proyecto
 
 ```text
+app/
+  application.py       Composición y arranque del backend
+  core.py              Configuración y funciones compartidas
+  routes/
+    api_routes.py      Catálogo de recursos de la API
+    http_routes.py     Ensamblaje del manejador HTTP
+  controllers/
+    base_controller.py Sesión, permisos y respuesta JSON
+    get_controller.py  Consultas
+    post_controller.py Creación y acciones
+    patch_controller.py Actualizaciones
+    delete_controller.py Eliminaciones
+  services/
+    alerts_service.py  Reglas de alertas
+    sensor_service.py  Integración del sensor ambiental
+  repositories/
+    base_repository.py Consultas reutilizables
+  database/
+    connection.py      Conexión e inicialización
 database/
-  schema/          Esquema completo de instalación
-  migrations/      Cambios incrementales de la base
-  tools/           Utilidad para aplicar el esquema
-docs/              Manuales y documentación
-public/
-  assets/css/      Estilos
-  assets/images/   Imágenes utilizadas por la interfaz
-  assets/js/       Lógica de cada pantalla
-  *.html           Vistas del sistema
-tests/             Pruebas automatizadas
-tools/database/    Verificaciones administrativas
-server.py          Servidor web, API y reglas de negocio
-requirements.txt   Dependencias de Python
-railway.json       Configuración de despliegue
+  schema/              Esquema completo
+  migrations/          Cambios incrementales
+docs/                  Manuales y documentación
+public/                HTML, CSS, JavaScript e imágenes
+tests/                 Pruebas automatizadas
+tools/                 Utilidades administrativas
+server.py              Punto de entrada
+requirements.txt       Dependencias
+railway.json           Configuración de despliegue vigente
 ```
 
 ## 3. Requisitos
 
 - Python 3.12 o compatible.
 - MariaDB 10.6 o MySQL 8.
-- Navegador web moderno.
-- Paquetes de `requirements.txt`.
+- Navegador moderno.
+- Dependencias de `requirements.txt`: PyMySQL y cryptography.
 
 ## 4. Configuración local
 
 1. Copiar `.env.example` como `.env`.
 2. Configurar `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD`.
-3. Mantener `COOKIE_SECURE=false` únicamente en desarrollo local.
+3. Mantener `COOKIE_SECURE=false` solo en desarrollo.
 4. Instalar dependencias:
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-5. Preparar la base con `database/schema/schema.sql` o aplicar las migraciones en orden.
-6. Iniciar:
-
-```powershell
-python server.py
-```
-
-7. Abrir `http://127.0.0.1:8000`.
+5. Preparar la base con `database/schema/schema.sql` y las migraciones requeridas.
+6. Iniciar con `python server.py`.
+7. Abrir `http://127.0.0.1:8000/login.html`.
 
 ## 5. Base de datos
 
-Las entidades principales son usuarios, roles, permisos, sesiones, fincas, módulos, piscinas, ciclos, colaboradores, actividades, productos, movimientos, alertas, mediciones de calidad, aireadores y eventos de aireación.
+Entidades principales: roles, permisos, usuarios, sesiones, fincas, módulos, piscinas, ciclos, colaboradores, actividades, productos, movimientos, alertas, rangos y mediciones de calidad, aireadores y eventos de aireación.
 
-Las migraciones deben ejecutarse en orden. La migración más reciente es `15_crear_aireacion.sql`. El usuario utilizado por la aplicación debe tener permisos de lectura y escritura, pero no necesita permisos para crear o eliminar tablas.
+La migración más reciente es `16_ubicacion_aireadores.sql`. Para permitir trabajos varios, `12_actividades_sin_piscina.sql` debe dejar `actividades.piscina_id` como `NULL`.
+
+El usuario de la aplicación necesita lectura y escritura. Las migraciones deben ejecutarse con un usuario administrativo después de generar respaldo.
 
 ## 6. Seguridad
 
-- Contraseñas protegidas con PBKDF2-SHA256, sal aleatoria y múltiples iteraciones.
-- Sesiones identificadas por tokens aleatorios; en la base solo se guarda su hash.
+- Contraseñas con PBKDF2-SHA256, sal aleatoria y 310,000 iteraciones.
+- Tokens de sesión aleatorios; solo su hash se guarda en la base.
 - Cookies `HttpOnly`, `SameSite=Strict` y `Secure` en producción.
-- Validación de rol y permiso en cada endpoint protegido.
-- Consultas parametrizadas para evitar inyección SQL.
-- Validaciones de formato, fechas, cantidades y reglas de negocio.
-- Secretos almacenados en variables de entorno, nunca en Git.
+- Validación de permisos por endpoint.
+- Consultas parametrizadas contra inyección SQL.
+- Validación de fechas, cantidades, roles y reglas de negocio.
+- Secretos únicamente en variables de entorno; `.env` y respaldos están excluidos de Git.
+- MySQL productivo utiliza red privada y credenciales referenciadas por Railway.
 
-## 7. API
+## 7. API y controladores
 
-La API utiliza rutas bajo `/api/`. Los grupos principales son:
+Las rutas se agrupan en `app/routes/api_routes.py`. `http_routes.py` compone el manejador con:
+
+- `GetController`: consultas y reportes.
+- `PostController`: login, altas y operaciones.
+- `PatchController`: ediciones y cambios de estado.
+- `DeleteController`: eliminaciones autorizadas.
+- `BaseController`: JSON, sesiones y permisos.
+
+Recursos principales:
 
 - `/api/login`, `/api/logout`, `/api/me`.
-- `/api/usuarios`, `/api/roles-config`.
-- `/api/piscinas`, `/api/ciclos`, `/api/modulos`.
-- `/api/colaboradores`, `/api/actividades`.
-- `/api/productos`, `/api/movimientos`.
-- `/api/calidad`.
-- `/api/aireacion` y sus acciones.
-- `/api/alertas`.
-- `/api/reportes`, `/api/reportes-dashboard`.
-- `/api/monitoreo`.
+- `/api/usuarios` y configuración de roles.
+- `/api/piscinas`, ciclos e historial.
+- `/api/colaboradores`, `/api/actividades` y opciones auxiliares.
+- `/api/productos`, `/api/movimientos` e inventario.
+- `/api/calidad`, `/api/aireacion`, `/api/alertas`.
+- `/api/reportes`, dashboard y `/api/monitoreo`.
 
-Las respuestas se entregan como JSON y utilizan códigos HTTP para indicar éxito, validación, falta de autorización o fallas externas.
+Las respuestas son JSON y utilizan códigos HTTP 200/201, 400, 401, 403, 404, 409 y 5xx según el resultado.
 
-## 8. Despliegue en Railway
+## 8. Servicios externos
 
-1. Confirmar los cambios en Git y subir la rama principal a GitHub.
-2. Aplicar primero las migraciones faltantes en la base productiva.
-3. Configurar las variables de base de datos y `COOKIE_SECURE=true`.
-4. Desplegar el servicio web.
-5. Revisar registros y probar login, dashboard y módulos críticos.
+El sensor se configura mediante `SENSOR_API_URL` y `SENSOR_EXPORT_KEY`. El backend consulta al proveedor y nunca expone la clave al navegador. Ante indisponibilidad devuelve un error controlado; el frontend conserva el panel y el último valor local.
 
-No se debe publicar `.env`, tokens, claves del sensor ni contraseñas.
+La integración WhatsApp/Evolution permanece deshabilitada en producción mediante `WHATSAPP_ALERTS_ENABLED=false` y no forma parte del alcance final.
 
-## 9. Pruebas
+## 9. Despliegue en Railway
 
-Ejecutar:
+1. Confirmar cambios y subir `main` a GitHub.
+2. Aplicar migraciones productivas con respaldo previo.
+3. Configurar referencias de conexión desde MySQL.
+4. Configurar `HOST=0.0.0.0`, `COOKIE_SECURE=true` y secretos del sensor.
+5. Desplegar `web`, revisar registros y probar módulos críticos.
+
+Proyecto actual: `sistema-camaronera-elio`. La configuración `railway.json` debe migrarse al formato Infrastructure as Code antes del 1 de diciembre de 2026.
+
+## 10. Pruebas
 
 ```powershell
-python -m py_compile server.py
+python -m compileall -q app server.py
 python -m unittest discover -s tests -v
 ```
 
-También se debe realizar una prueba manual de cada módulo con un usuario administrador y otro con permisos limitados.
+La versión 4.0 tiene 17 pruebas automatizadas aprobadas. También deben probarse manualmente login, permisos, ciclos, actividades, inventario, alertas, calidad, aireación, monitoreo y reportes.
 
-## 10. Respaldo y restauración
+## 11. Respaldo y restauración
 
-- Generar periódicamente un respaldo SQL de estructura y datos.
-- Guardarlo cifrado y fuera del servidor principal.
-- Verificar la restauración en una base de prueba.
-- Antes de cada migración productiva, realizar un respaldo.
+- Crear un respaldo SQL antes de migraciones o importaciones.
+- Guardarlo cifrado fuera del repositorio.
+- Excluir sesiones antiguas al trasladar una base cuando no sean necesarias.
+- Probar periódicamente la restauración en un entorno separado.
 
-## 11. Mantenimiento
+## 12. Mantenimiento
 
-- Revisar alertas y registros del servidor.
-- Desactivar cuentas que ya no deban ingresar.
-- Actualizar dependencias después de probarlas localmente.
+- Revisar alertas y registros de Railway.
+- Desactivar cuentas sin autorización vigente.
 - Mantener sincronizados GitHub, Railway y el esquema SQL.
-- Documentar toda migración nueva.
+- Actualizar dependencias solo después de pruebas locales.
+- Documentar toda migración y conservar el historial de Git.
 
-## 12. Limitaciones conocidas
+## 13. Limitaciones conocidas
 
-- El control de aireación demuestra la lógica y trazabilidad; la actuación física requiere integrar hardware.
-- El monitoreo ambiental depende de un servicio externo.
-- La recuperación automática de contraseña no forma parte de la versión final.
-- La disponibilidad depende del servidor y la conexión de red.
+- La aireación demuestra lógica y trazabilidad; el accionamiento físico requiere hardware definitivo.
+- El monitoreo ambiental depende de un proveedor externo.
+- La recuperación automática de contraseña no forma parte de la entrega final.
+- La disponibilidad depende de Railway, MySQL, internet y servicios externos.
