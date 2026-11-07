@@ -52,9 +52,18 @@ async function load() {
         .map(item => `<option value="${item.id}">${safe(item.codigo_empleado)} · ${safe(item.nombre)}</option>`)
         .join("");
 
-    $("#taskPool").innerHTML = '<option value="">Trabajos varios (sin piscina)</option>' + pools
-        .map(item => `<option value="${item.id}">${safe(item.codigo)}</option>`)
-        .join("");
+    const poolOption = item =>
+        `<option value="${item.id}">${safe(item.codigo)} — ${safe(item.estado_ciclo || "Sin ciclo")}</option>`;
+    const seededPools = pools.filter(item => item.estado_ciclo === "Sembrado");
+    const availablePools = pools.filter(item => item.estado_ciclo !== "Sembrado");
+    const seededGroup = seededPools.length
+        ? `<optgroup label="Piscinas sembradas">${seededPools.map(poolOption).join("")}</optgroup>`
+        : "";
+    const availableGroup = availablePools.length
+        ? `<optgroup label="Piscinas disponibles">${availablePools.map(poolOption).join("")}</optgroup>`
+        : "";
+    $("#taskPool").innerHTML =
+        '<option value="">Trabajos varios (sin piscina)</option>' + seededGroup + availableGroup;
 
     renderStaff();
     renderTasks();
