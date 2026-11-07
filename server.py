@@ -823,22 +823,25 @@ class App(SimpleHTTPRequestHandler):
             if not descripcion: return self.json(400,{"error":"La descripción debe contener entre 5 y 300 caracteres."})
             if inicio_dt.date()!=fin_dt.date(): return self.json(400,{"error":"La actividad debe iniciar y finalizar el mismo día."})
             if fin_dt<=inicio_dt: return self.json(400,{"error":"La hora de finalización debe ser posterior a la hora de inicio."})
-            with db() as c:
-                valid=c.execute("""SELECT 1 FROM colaboradores c
-                    WHERE c.id=? AND c.estado=1
-                    AND (UPPER(TRIM(c.puesto)) LIKE 'AUXILIAR%%' OR UPPER(TRIM(c.puesto)) LIKE 'SUPERVISOR%%')""",(colaborador,)).fetchone()
-                if not valid:return self.json(400,{"error":"Solo puede asignar actividades a auxiliares o supervisores activos."})
-                if piscina and not c.execute("SELECT 1 FROM piscinas WHERE id=? AND estado=1",(piscina,)).fetchone():
-                    return self.json(400,{"error":"La piscina seleccionada no está habilitada."})
-                overlap=c.execute("""SELECT 1 FROM actividades
-                    WHERE colaborador_id=? AND estado IN ('Pendiente','En proceso')
-                    AND fecha_inicio IS NOT NULL
-                    AND fecha_inicio<? AND COALESCE(fecha_fin,fecha_limite)>?
-                    LIMIT 1""",(colaborador,fin,inicio)).fetchone()
-                if overlap:return self.json(409,{"error":"El colaborador ya tiene una actividad asignada dentro de ese horario."})
-                c.execute("""INSERT INTO actividades(
-                    colaborador_id,piscina_id,descripcion,fecha_inicio,fecha_fin,fecha_limite,usuario_asigna
-                    ) VALUES(?,?,?,?,?,?,?)""",(colaborador,piscina,descripcion,inicio,fin,fin,user["id"]))
+            try:
+                with db() as c:
+                    valid=c.execute("""SELECT 1 FROM colaboradores c
+                        WHERE c.id=? AND c.estado=1
+                        AND (UPPER(TRIM(c.puesto)) LIKE 'AUXILIAR%%' OR UPPER(TRIM(c.puesto)) LIKE 'SUPERVISOR%%')""",(colaborador,)).fetchone()
+                    if not valid:return self.json(400,{"error":"Solo puede asignar actividades a auxiliares o supervisores activos."})
+                    if piscina and not c.execute("SELECT 1 FROM piscinas WHERE id=? AND estado=1",(piscina,)).fetchone():
+                        return self.json(400,{"error":"La piscina seleccionada no está habilitada."})
+                    overlap=c.execute("""SELECT 1 FROM actividades
+                        WHERE colaborador_id=? AND estado IN ('Pendiente','En proceso')
+                        AND fecha_inicio IS NOT NULL
+                        AND fecha_inicio<? AND COALESCE(fecha_fin,fecha_limite)>?
+                        LIMIT 1""",(colaborador,fin,inicio)).fetchone()
+                    if overlap:return self.json(409,{"error":"El colaborador ya tiene una actividad asignada dentro de ese horario."})
+                    c.execute("""INSERT INTO actividades(
+                        colaborador_id,piscina_id,descripcion,fecha_inicio,fecha_fin,fecha_limite,usuario_asigna
+                        ) VALUES(?,?,?,?,?,?,?)""",(colaborador,piscina,descripcion,inicio,fin,fin,user["id"]))
+            except INTEGRITY_ERRORS:
+                return self.json(409,{"error":"No fue posible guardar la actividad. Verifique el colaborador y el lugar seleccionados."})
             return self.json(201,{"ok":True})
         if path=="/api/aireacion":
             user=self.require("aireacion.operar")
