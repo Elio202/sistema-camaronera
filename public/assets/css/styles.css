@@ -252,7 +252,9 @@ select {
     width: 250px;
     padding: 28px 22px;
     background: var(--navy);
-    color: #fff
+    color: #fff;
+    display: flex;
+    flex-direction: column
 }
 
 .app-page aside .brand {
@@ -261,7 +263,9 @@ select {
 
 .app-page nav {
     display: grid;
-    gap: 7px
+    gap: 7px;
+    flex: 1;
+    min-height: 0
 }
 
 .app-page nav small {
@@ -286,9 +290,9 @@ select {
 }
 
 .sidebar-foot {
-    position: absolute;
-    left: 34px;
-    bottom: 28px;
+    position: static;
+    flex: 0 0 auto;
+    margin: 16px 12px 0;
     color: #b9ccce;
     font-size: 12px
 }
@@ -1024,8 +1028,10 @@ dialog form > label textarea {
 }
 
 .app-page aside nav {
-    max-height: calc(100vh - 255px);
-    overflow: auto
+    max-height: none;
+    overflow: auto;
+    padding-bottom: 14px;
+    scrollbar-gutter: stable
 }
 
 @media(max-width:1050px) {
