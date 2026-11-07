@@ -2,11 +2,11 @@
 
 import sys
 
-from app import application
+from app.controllers import application_controller
 
 
 if __name__ == "__main__":
-    application.run()
+    application_controller.run()
 else:
     # Conserva compatibilidad con pruebas y herramientas que importan `server`.
-    sys.modules[__name__] = application
+    sys.modules[__name__] = application_controller

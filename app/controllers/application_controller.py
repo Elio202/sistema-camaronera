@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 try: import pymysql
 except ImportError: pymysql = None
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "data" / "sistema.db"
 PUBLIC = ROOT / "public"
 ITERATIONS = 310_000
