@@ -9,7 +9,11 @@ from docx.shared import Inches, Pt
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
-MANUALS = ("MANUAL_USUARIO_FINAL", "MANUAL_TECNICO_FINAL")
+MANUALS = (
+    "MANUAL_USUARIO_FINAL",
+    "MANUAL_TECNICO_FINAL",
+    "GUIA_PRESENTACION_FINAL",
+)
 
 
 def add_inline(paragraph, text):
@@ -70,6 +74,13 @@ def markdown_to_docx(source, destination):
         if numbered:
             paragraph = document.add_paragraph(style="List Number")
             add_inline(paragraph, numbered.group(1))
+            continue
+        quote = re.match(r"^>\s+(.+)$", line)
+        if quote:
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.left_indent = Inches(0.35)
+            run = paragraph.add_run(quote.group(1))
+            run.italic = True
             continue
         paragraph = document.add_paragraph()
         add_inline(paragraph, line.replace("  ", ""))
